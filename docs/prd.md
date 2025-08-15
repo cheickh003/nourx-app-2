@@ -3,7 +3,17 @@
 **Date :** 11 août 2025
 **Version :** v1.0 (Spécification complète – MVP prêt à développer)
 **Propriétaire produit :** Cheickh Keita (NOURX)
-**Stack cible :** **Next.js (App Router)** +** ****Tailwind CSS** +** ****shadcn/ui** +** ****Supabase (Auth, Postgres, Storage, Realtime)** +** ****CinetPay** pour les paiements.
+**Stack cible :**
+- **Frontend :** **Next.js (App Router)** + **Tailwind CSS** + **shadcn/ui**
+- **Backend :** **Django 5** + **Django REST Framework (DRF)**
+- **Auth :** Sessions Django + CSRF (optionnel **django-allauth** pour OAuth)
+- **Admin :** Back-office via **Django Admin**
+- **Temps réel (option) :** **Django Channels** (ASGI) + Redis
+- **Tâches :** **Celery** + **django-celery-beat** (rappels SLA, emails, génération PDF)
+- **Base de données :** **PostgreSQL**
+- **Stockage documents :** **django-storages** + **S3** (URL signées / presigned POST)
+- **Paiements :** **CinetPay** (init, webhook HMAC `x-token`, `/v2/payment/check`)
+- **Sécurité :** **SecurityMiddleware** (HSTS, nosniff, referrer policy, etc.)
 
 ---
 
@@ -48,24 +58,33 @@ Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, cl
 
 ---
 
-## 4) Architecture technique (BFF avec Next.js + Supabase)
+## 4) Architecture technique (Next.js + Django)
 
-* **Front & BFF** :** ****Next.js App Router** (RSC,** ****Route Handlers** pour API internes, Webhooks CinetPay),** ****Server Actions** pour mutations sûres (CSR/SSR hybrides). ([nextjs.org](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware?utm_source=chatgpt.com "Getting Started: Route Handlers and Middleware"))
-* **Auth & Données** :** ****Supabase** (Auth/SSO, Postgres, Realtime,** ** **RLS** ),** ****Storage** (documents clients,** ** **signed URLs** ). ([Supabase](https://supabase.com/docs/guides/auth/server-side/nextjs?utm_source=chatgpt.com "Setting up Server-Side Auth for Next.js"))
-* **Paiements** :** ****CinetPay** (init paiement,** ****webhook x-token** HMAC,** ** **/v2/payment/check** ). ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/initialisation?utm_source=chatgpt.com "Initiating a payment | CinetPay-Documentation"))
-* **Observabilité** : Sentry (erreurs front/back), PostHog (analytics produit & replay). ([docs.sentry.io](https://docs.sentry.io/platforms/javascript/guides/nextjs/?utm_source=chatgpt.com "Sentry for Next.js"),** **[posthog.com](https://posthog.com/docs/libraries/next-js?utm_source=chatgpt.com "Next.js - Docs"))
+- **Frontend** : Next.js App Router (RSC), Tailwind, shadcn/ui pour les composants. Les appels API se font côté serveur (RSC) ou client avec `credentials: 'include'` pour véhiculer les cookies de session.
+- **Backend** : Django 5 + DRF expose des APIs REST sécurisées par sessions/CSRF. Django Admin couvre le back-office (vous seul).
+- **Auth** : `django.contrib.auth` (sessions + CSRF). Optionnel `django-allauth` si you want OAuth (Google, GitHub…). Côté Next.js, récupérer le cookie `csrftoken` puis envoyer l’en-tête `X-CSRFToken` pour les mutations.
+- **Temps réel (option)** : Django Channels + Redis (channel layer) pour pousser mises à jour (kanban, commentaires). Protocole WebSocket, fallback SSE si besoin.
+- **Tâches asynchrones** : Celery + django-celery-beat pour rappels SLA, envois d’emails, génération PDF, vérification différée des paiements.
+- **Base de données** : PostgreSQL (psycopg). Modélisation via modèles Django (liste au §5).
+- **Stockage** : django-storages + S3. Téléversement direct possible via presigned POST émis par Django, lecture via URLs signées. MiniO en local.
+- **Paiements** : CinetPay – endpoint d’init côté Django, webhook avec vérification HMAC `x-token`, re-check `/v2/payment/check` avant de marquer « payée ».
+- **Sécurité** : `SecurityMiddleware` (HSTS, `X-Content-Type-Options`, `Referrer-Policy`), `django-cors-headers` pour `CORS_ALLOWED_ORIGINS` (Next) et `CSRF_TRUSTED_ORIGINS`.
+- **Observabilité** : Sentry (Django + Next.js) et PostHog (analytics produit).
 
-**Notes**
+**Endpoints Django (exemples)**
 
-* **Route Handlers** dédiés :
-  * `POST /api/webhooks/cinetpay` (raw body, vérif** **`x-token` HMAC + check transaction) ;
-  * `POST /api/invoices/:id/pay` (création session / init SDK). ([nextjs.org](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware?utm_source=chatgpt.com "Getting Started: Route Handlers and Middleware"))
-* **RLS** protège toutes les tables** ****par client** (seulement le propriétaire voit ses lignes) ; l’admin (rôle spécial) voit tout. Realtime respecte RLS. ([Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security?utm_source=chatgpt.com "Row Level Security | Supabase Docs"))
-* **Storage** : buckets privés, accès via** ****JWT** (download) ou** ****URL signée** pour échanges temporaires. ([Supabase](https://supabase.com/docs/guides/storage/buckets/fundamentals?utm_source=chatgpt.com "Storage Buckets | Supabase Docs"))
+- `POST /api/auth/login/` (session), `POST /api/auth/logout/`.
+- `GET /api/projects/`, `GET /api/projects/{id}/`, `POST /api/tasks/…`.
+- `POST /api/payments/init/` (CinetPay init), `POST /api/payments/webhook/`, `GET /api/payments/{id}/status/`.
+
+**Interop Next.js ↔ Django**
+
+- Dev: proxy Next.js (`/api/*`) vers Django pour cookies same-site et éviter CORS en local.
+- Prod: même domaine et sous-chemins (ex. `app.nourx.com` pour Next, `api.nourx.com` pour Django) avec cookies `Secure` et `SameSite=Lax` ou `None` selon le besoin cross-site.
 
 ---
 
-## 5) Modèle de données (Supabase / Postgres)
+## 5) Modèle de données (Django / Postgres)
 
 **Tables principales (extrait)**
 
@@ -84,24 +103,24 @@ Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, cl
 * `tickets` (id, client_id, project_id, subject, status, priority)
 * `audit_logs` (id, actor_id, action, entity, entity_id, diff_json)
 
-**RLS (exemples de politiques)**
+**Permissions & visibilité**
 
-* SELECT/INSERT/UPDATE/DELETE sur entités** ****scopées par** **`client_id` =** **`auth.uid()` à travers** **`profiles`** (ou par jointure via une table de liaison** **`client_members`).
-* Rôle** **`admin` (dans** **`profiles.role`) a bypass via policy utilisant** **`auth.jwt()` claims.** ****Realtime** hérite de ces règles. ([Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security?utm_source=chatgpt.com "Row Level Security | Supabase Docs"))
+- Les objets sont scopés par `client_id` via des ForeignKey et des permissions DRF (IsAuthenticated + custom `IsClientObjectOwner`).
+- L’admin (superuser) voit tout via Django Admin et des vues DRF protégées par `IsAdminUser`.
 
-**Storage**
+**Stockage (S3)**
 
-* Bucket** **`project-files`  **private** . Upload/Read gérés par** ****policies sur** **`storage.objects`** ; partage ponctuel via** ** **`createSignedUrl`** . ([Supabase](https://supabase.com/docs/guides/storage/security/access-control?utm_source=chatgpt.com "Storage Access Control | Supabase Docs"))
+- Bucket privé `project-files`. Téléversement via presigned POST émis par Django. Lecture via URL signée (durée limitée). Les métadonnées (bucket, key, visibility) sont stockées dans `documents`.
 
 ---
 
 ## 6) Authentification & Sécurité
 
-* **Auth côté Next.js** : Supabase SSR (`@supabase/ssr`) + middleware pour refresh des tokens, compatible App Router. ([Supabase](https://supabase.com/docs/guides/auth/server-side/nextjs?utm_source=chatgpt.com "Setting up Server-Side Auth for Next.js"))
-* **Permissions** : RLS Postgres (défense-en-profondeur). ([Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security?utm_source=chatgpt.com "Row Level Security | Supabase Docs"))
-* **Webhooks CinetPay** : validation** ****HMAC** (header** **`x-token`) à partir du** ****Secret Key** marchand +** ****re-vérification côté serveur** via** ****`/v2/payment/check`** avant de marquer une facture payée. ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
-* **CSP / CSRF** : Server Actions autorisées en** ****même origine** (config** **`allowedOrigins` si proxy). ([nextjs.org](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions?utm_source=chatgpt.com "next.config.js: serverActions"))
-* **Journaux** : stocker l’événement brut (payload webhook) dans** **`payments`/`payment_attempts` + audit trail.
+- **Auth** : Sessions Django (`django.contrib.auth`). Login/logout exposés en API (DRF) ou via `dj-rest-auth`. Côté Next.js, toujours envoyer `credentials: 'include'`.
+- **CSRF** : `CSRF_TRUSTED_ORIGINS` (domaines du front), cookie `csrftoken` et en-tête `X-CSRFToken` sur les mutations. En dev, activer un proxy Next→Django pour simplifier.
+- **CORS** : `django-cors-headers` avec `CORS_ALLOWED_ORIGINS` pour le domaine Next.js si nécessaire.
+- **SecurityMiddleware** : HSTS (`SECURE_HSTS_SECONDS`), `SECURE_SSL_REDIRECT=True`, `X-Content-Type-Options=nosniff`, `Referrer-Policy=strict-origin-when-cross-origin`.
+- **Webhooks CinetPay** : vérifier HMAC `x-token`, comparer montant/devise/statut, puis re-vérifier via `/v2/payment/check`. Journaliser l’événement brut dans `payment_attempts`.
 
 ---
 
