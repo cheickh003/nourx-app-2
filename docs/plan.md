@@ -4,14 +4,43 @@ Ce document détaille un plan complet et séquencé pour construire, tester et m
 
 ## 0. Résumé Exécutif
 
-- Objectif: livrer un portail client moderne (front Next.js + back Django/DRF) couvrant projets, tâches (kanban), documents, devis/factures, paiement CinetPay, réclamations, avec un back-office via Django Admin.
-- Principaux choix: Django 5 + DRF (sessions/CSRF), Django Channels (temps réel), Celery + Beat (jobs planifiés), PostgreSQL, S3 (django-storages), Next.js (App Router) + Tailwind + shadcn/ui.
-- Stratégie: itérations verticales (backend + frontend par fonctionnalité), qualité par défaut (tests, lint, CI), sécurité (CSRF/CORS/HSTS), robustesse paiements (webhook HMAC + re-check `/v2/payment/check`).
+- **Objectif**: livrer **deux dashboards distincts** sur stack Django/DRF/S3 only :
+  1. **Dashboard Client** : portail moderne pour suivi projets, paiements CinetPay, collaboration
+  2. **Dashboard Admin NOURX** : back-office complet pour pilotage business, gestion clients/prospects, configuration
+- **Stack technique** : Django 5 + DRF (sessions/CSRF), Django Channels (temps réel), Celery + Beat (jobs planifiés), PostgreSQL, S3 (django-storages), Next.js (App Router) + Tailwind + shadcn/ui
+- **Stratégie** : développement priorisé Dashboard Client d'abord (semaines 1-6) puis Dashboard Admin (semaines 7-9), itérations verticales par fonctionnalité, sécurité (CSRF/CORS/HSTS), robustesse paiements (webhook HMAC + re-check `/v2/payment/check`)
 
 ## 1. Portée & Hors-périmètre
 
-- Portée: fonctionnalités MVP du PRD (Dashboard, Projets, Roadmap, Tâches, Devis/Factures + Paiement CinetPay, Documents, Tickets, Paramètres) + Admin (mono-utilisateur) + Observabilité + CI/CD.
-- Hors-périmètre (MVP): multi-équipes internes, portail multi-entreprises, relances multicanal avancées, e-sign avancée. Prévoir extensibilité.
+### Portée MVP - Deux Applications Distinctes
+
+**A) Dashboard Client (Interface Épurée)**
+- Authentification et profil client
+- Vue d'ensemble projets personnalisés 
+- Suivi tâches assignées (kanban/liste)
+- Consultation/paiement factures CinetPay
+- Gestion documents projet (S3 sécurisé)
+- Support/réclamations
+- Préférences et notifications
+
+**B) Dashboard Admin NOURX (Back-office Complet)**
+- KPIs business et alertes opérationnelles
+- Gestion complète clients et prospects
+- Pilotage tous projets et tâches
+- Facturation et monitoring paiements
+- Configuration système et paramètres
+- Support centralisé et SLA
+
+**Composants Techniques Communs**
+- Backend Django/DRF avec permissions scopées
+- Base PostgreSQL + Redis + S3
+- Observabilité (Sentry/PostHog) + CI/CD
+
+### Hors-périmètre (MVP)
+- Multi-équipes internes, portail multi-entreprises
+- Relances automatiques multicanal avancées
+- E-signature avancée, intégrations ERP
+- Mobile apps natives (web responsive suffisant)
 
 ## 2. Architecture & Décisions (résumé)
 
@@ -45,117 +74,93 @@ Référence: voir `docs/architecture-django.md`.
 - `.github/workflows` (CI/CD)
 - `docs/` (PRD, architecture, plan)
 
-## 5. Feuille de Route d’Implémentation (phases)
+## 5. Feuille de Route d'Implémentation - Focus Deux Dashboards (phases)
 
-Chaque phase produit des livrables testables avec critères d’acceptation.
+**Stratégie** : Dashboard Client en priorité (phases 0-5), puis Dashboard Admin (phases 6-8), finition commune (phase 9).
 
 ### Phase 0 – Bootstrap & Infra (1–2 j)
-- Initialiser monorepo, licences internes, `.editorconfig`, `pre-commit`.
-- Docker Compose: services (web, worker, beat, redis, postgres, minio, mailhog, web-frontend).
-- Makefile/justfile: `make up`, `make down`, `make logs`, `make migrate`, `make createsuperuser`.
-- Secrets: `.env.example` pour front/back (voir Annexe ENV).
-- Critères: `docker compose up` lève tous les services; admin Django accessible; Next.js page d’accueil accessible.
+- Initialiser monorepo Django/DRF/S3 only, licences internes, `.editorconfig`, `pre-commit`
+- Docker Compose: services (web, worker, beat, redis, postgres, minio, mailhog, web-frontend)
+- Makefile: `make up`, `make down`, `make migrate`, `make createsuperuser`, `make seed-data`
+- Variables d'environnement : `.env.example` pour front/back (stack Django/DRF/S3)
+- **Critères** : services OK, admin Django accessible, Next.js accueil accessible
 
-### Phase 1 – Backend Fondation (Django/DRF) (3–5 j)
-- Projet Django (`apps/api`): settings split (base/dev/prod), ASGI, `urls.py` de base.
-- Apps: `core`, `accounts`, `clients`, `projects`, `tasks`, `documents`, `billing`, `payments`, `support`, `audit`.
-- Settings:
-  - `INSTALLED_APPS`: `rest_framework`, `corsheaders`, `channels`, `django_celery_beat`, `storages`, `drf_spectacular`.
-  - `MIDDLEWARE`: `SecurityMiddleware`, `SessionMiddleware`, `CsrfViewMiddleware`, `AuthenticationMiddleware`, `CorsMiddleware`.
-  - DB Postgres, CHANNEL_LAYERS Redis, Celery (broker/backends), S3 storages, CORS/CSRF (origines Next), SecurityMiddleware (HSTS, nosniff, referrer policy).
-  - DRF: `SessionAuthentication` + `IsAuthenticated` par défaut.
-- URLs API: `api/schema/` (OpenAPI), `api/schema/swagger/` (UI), healthcheck.
-- Auth endpoints: login/logout (Session) + `GET /api/me/` (profil courant).
-- Admin: activer et sécuriser (IP allow en prod, 2FA optionnel).
-- Critères: tests unitaires de base (auth, CSRF), OpenAPI générée, admin OK.
+### Phase 1 – Backend Django/DRF Fondation (3–5 j)
+- Projet Django (`apps/api`): settings split (base/dev/prod), ASGI, URLs de base
+- Apps Django : `core`, `accounts`, `clients`, `projects`, `tasks`, `documents`, `billing`, `payments`, `support`, `audit`
+- **Configuration Django/DRF/S3 only** :
+  - DRF : `SessionAuthentication` + `IsAuthenticated` + permissions custom
+  - PostgreSQL + Redis + S3 (django-storages)
+  - Channels optionnel pour temps réel
+  - Celery + Beat pour jobs planifiés
+- Auth endpoints : login/logout + `/api/me/` (profil courant)
+- Admin Django sécurisé
+- **Critères** : OpenAPI générée, auth fonctionnelle, tests unitaires de base
 
-### Phase 2 – Frontend Fondation (Next.js) (3–5 j)
-- Init Next.js (TypeScript, App Router), Tailwind, config design tokens (noir/blanc, accents), installer shadcn/ui avec composants de base (Button, Card, Input, Table, Dialog, Sheet, Tabs, Dropdown, Toast).
-- Layouts: Shell (Sidebar, Topbar), thème, routes protégées (middleware client/SSR). Pages placeholder: Dashboard, Projects, Tasks, Invoices, Documents, Tickets, Settings.
-- API client: util fetch RSC/CSR avec `credentials: 'include'`, gestion CSRF (`X-CSRFToken`), wrapper d’erreur.
-- Auth UI: pages login/logout, récupération de session (SSR) et redirection.
-- Critères: parcours login → dashboard; navigation et protection routes; style de base conforme PRD.
+### Phase 2 – Frontend Fondation : Dashboard Client (3–5 j)
+- **Focus Dashboard Client uniquement** (interface épurée)
+- Next.js + Tailwind + shadcn/ui : layout client simplifié
+- Navigation client : Dashboard, Projets, Tâches, Factures, Documents, Support, Profil
+- API client avec `credentials: 'include'`, gestion CSRF
+- Auth UI : login/logout côté client
+- **Critères** : parcours login client → dashboard, navigation protégée, style épuré conforme PRD
 
-### Phase 3 – Domaine Clients & Profils (2–3 j)
-- Modèles: `Profile(user OneToOne, role: admin|client, phone)`, `Client` (raison sociale, contact, …), `ClientMember` (user↔client).
-- Permissions DRF: `IsClientObjectOwner` (scope par `client_id`) + `IsAdminUser`.
-- Endpoints: CRUD clients (admin), liste clients d’un user (client role limité).
-- UI: liste clients (admin), sélection du client courant dans le shell UI si pertinent.
-- Critères: Règles d’accès validées tests (admin vs client).
+### Phase 3 – Core Client : Projets & Tâches (4–6 j)
+- **Focus MVP Dashboard Client opérationnel**
+- Modèles : `Client`, `Project`, `Task`, permissions DRF scopées par client_id
+- Endpoints clients : projets du client, tâches assignées
+- UI Client : dashboard projets, liste/détail projets, kanban tâches simplifié
+- **Critères** : client voit uniquement ses projets/tâches, permissions strictes validées
 
-### Phase 4 – Projets & Roadmap (3–4 j)
-- Modèles: `Project(client, title, status, progress)`, `Milestone(project, title, due_date, status)`.
-- Endpoints: `GET/POST /projects`, `GET /projects/{id}`, `GET/POST /milestones`.
-- UI: Liste + Détail projet (KPIs, jalons). Timeline jalons (shadcn components + simple timeline).
-- Critères: visible seulement par le client propriétaire; admin voit tout.
+### Phase 4 – Documents & Facturation Client (3–5 j)
+- **Focus fonctionnalités critiques client**
+- Documents S3 : modèles, presigned URLs, upload/download sécurisé
+- Factures : consultation, historique, génération PDF (WeasyPrint)
+- UI Client : section documents par projet, section factures avec détails
+- **Critères** : client accède à ses documents, voit ses factures, télécharge PDFs
 
-### Phase 5 – Tâches, Kanban & Commentaires (4–6 j)
-- Modèles: `Task(project, title, status: todo|doing|done, priority, assigned_to)`, `TaskComment(task, author, body)`.
-- Endpoints: liste/filtre par projet, création, mise à jour, déplacement de colonne (PATCH), commentaires (CRUD minimal).
-- UI: Kanban (drag & drop), détails de tâche (drawer/modal), commentaires en temps réel (placeholder pour Channels).
-- Critères: déplacements persistés, commentaires s’affichent; permissions respectées.
+### Phase 5 – Paiements CinetPay Client (5–8 j)
+- **Focus robustesse paiements côté client**
+- Intégration CinetPay : init paiement, webhook HMAC x-token, re-check `/payment/check`
+- UI Client : bouton payer sur facture, écrans succès/échec, statut paiement
+- Tests paiements : mocks + staging réel, idempotence
+- **Critères** : flux paiement complet robuste depuis dashboard client
 
-### Phase 6 – Documents & Stockage S3 (3–5 j)
-- Modèle: `Document(project, bucket, key, label, visibility, size, mimetype)`.
-- Endpoints: `POST /uploads/presign` (policy presigned POST), `GET /documents/{id}/download` (URL signée), CRUD métadonnées.
-- Intégration S3 (prod) / MinIO (dev). Filtrage MIME, taille max, antivirus option (ClamAV) en tâche Celery.
-- UI: Uploader (direct-to-S3 via presigned), liste, prévisualisation (si possible), download sécurisé.
-- Critères: upload direct, pas de fichiers en clair sur le backend, URLs signées expirables.
+### Phase 6 – Dashboard Admin : Bootstrap & KPIs (3–5 j)
+- **Début Dashboard Admin (interface dense)**
+- Layout admin : sidebar étendue, navigation complexe
+- Dashboard business : KPIs projets, finances, alertes, activité temps réel
+- Vue générale : tous projets, tous clients, métriques globales
+- **Critères** : dashboard admin fonctionnel, KPIs affichés, navigation admin complète
 
-### Phase 7 – Devis, Factures & PDF (4–6 j)
-- Modèles: `Quote`, `Invoice`, `InvoiceItem`, états `draft|sent|paid|overdue|canceled`.
-- Génération PDF (WeasyPrint) async via Celery, stockage S3, endpoint `GET /invoices/{id}/pdf`.
-- UI: liste devis/factures, détail facture, bouton export PDF.
-- Critères: PDFs corrects, cache-control, permissions.
+### Phase 7 – Admin : Gestion Clients & Projets (4–6 j)
+- **Focus pilotage business admin**
+- CRUD clients/prospects : pipeline commercial, segmentation
+- Pilotage projets : vue kanban globale, assignation tâches
+- Facturation admin : génération, envoi, monitoring paiements
+- **Critères** : admin gère tous clients/projets, génère factures, suit paiements
 
-### Phase 8 – Paiements CinetPay (5–8 j)
-- Endpoints:
-  - `POST /payments/init/` (crée `PaymentAttempt`, appelle l’API CinetPay, retourne URL/params)
-  - `POST /payments/webhook/` (raw body, vérif HMAC `x-token`), idempotent
-  - `GET /payments/{id}/status/` et tâche Celery de re-check `/v2/payment/check`
-- Sécurité: comparer montant/devise/référence; marquer facture payée seulement après `check` confirmé.
-- Journalisation: stocker payload brut dans `payment_attempts`, relier à `payments` et `invoices`.
-- UI: bouton « Payer » sur facture, écrans succès/échec, rafraîchissement statut.
-- Tests: mocks API CinetPay, cas webhook répété/désordonné.
-- Critères: flux complet robuste, idempotence vérifiée, anti-tamper via HMAC.
+### Phase 8 – Admin : Support & Configuration (3–4 j)
+- **Focus outils de gestion avancés**
+- Support : tickets centralisés, SLA, attribution
+- Configuration : branding, paramètres CinetPay, modèles emails
+- Documentation admin : guides d'utilisation
+- **Critères** : admin gère support complet, configure système, accède à tous paramètres
 
-### Phase 9 – Temps Réel (Channels) (4–6 j)
-- Channels: config Redis, routage, Consumers pour `tasks` (changements d’état, nouveaux commentaires) et `notifications`.
-- Auth WS: session cookie; groupes par `project_id`/`client_id`.
-- Front: hook WebSocket, subscriptions par page (projet/tâches), mise à jour optimiste.
-- Critères: updates en push fiables, reconnection, backoff.
+### Phase 9 – Finition Commune & Go-Live (3–5 j)
+- **Focus finalisation pour production**
+- Temps réel (Channels) : WebSocket pour mises à jour tâches/notifications
+- Observabilité : Sentry (Django + Next.js), PostHog, structured logging
+- Sécurité : `SECURE_*`, HSTS, CSP, rate-limiting endpoints sensibles
+- CI/CD : GitHub Actions, déploiement automatique staging/prod
+- Tests E2E : Playwright scénarios clés (client + admin)
+- **Critères** : production ready, monitoring actif, déploiement automatisé, documentation complète
 
-### Phase 10 – Rappels & Tâches Planifiées (Celery Beat) (2–4 j)
-- Jobs: rappels échéances jalons/tâches, relances factures (pré-due, due, overdue), nettoyage URLs signées expirées.
-- Paramétrage dans Django Admin (périodicité), templates email, SLA.
-- Critères: planifications visibles dans Admin, logs Celery OK.
-
-### Phase 11 – Paramètres, Tickets & Divers (3–5 j)
-- Tickets support: `Ticket(client, project, subject, status, priority)` + commentaires.
-- Paramètres utilisateur: profil, préférences notifications.
-- Admin: écrans additionnels utiles (lectures seule, filtres, actions).
-- Critères: flux support minimal opérationnel.
-
-### Phase 12 – Observabilité & Sécurité (2–4 j)
-- Sentry (Django + Next), PostHog (Next). Structured logging (request id), métriques basiques.
-- Sécurité: `SECURE_*`, HSTS, CSP (option `django-csp`), rate-limit (`django-ratelimit`) sur endpoints sensibles, headers HTTP.
-- Backups: snapshots DB, politique de rétention S3, rotation clés.
-- Critères: erreurs capturées, alertes basiques actives.
-
-### Phase 13 – CI/CD & Déploiement (3–5 j)
-- CI GitHub Actions:
-  - Backend: lint + tests + build image Docker
-  - Frontend: lint + tests + build
-  - Publish images (GHCR/ECR), cache
-- CD: staging automatique sur branche `develop`, prod sur `main` (review step). Migrations auto avec verrou.
-- Infra prod minimaliste: 2 VM (front + back) ou reverse proxy unique, TLS, serveurs supervisés; ou PaaS (Railway/Render/Fly) si souhaité.
-- Critères: déploiement 1-commande vers staging, rollback rapide.
-
-### Phase 14 – QA, E2E & Go-Live (3–5 j)
-- Tests: `pytest` couverture >80% back critique; e2e Playwright scénarios clés (login, voir projet, créer tâche, uploader document, payer facture démo).
-- Performance basique: pages <2s TTFB sur réseau normal; WS stable.
-- Runbooks: paiements, webhook, incident response, rotation secrets.
-- Go-live checklist (voir §10).
+**Planning indicatif :**
+- **Semaines 1-3** : Phases 0-2 (fondations + Dashboard Client)
+- **Semaines 4-6** : Phases 3-5 (Dashboard Client complet)  
+- **Semaines 7-8** : Phases 6-8 (Dashboard Admin complet)
+- **Semaine 9** : Phase 9 (finition + go-live)
 
 ## 6. Spécifications Domaines & API (extrait)
 
@@ -233,15 +238,33 @@ Indexation: index sur `client_id`, `project_id`, `status`, `due_date`, `created_
 - Fuites d’accès S3: bucket privé, presigned seulement, policy minimales, logs accès.
 - Charge WS: backpressure, limites de rooms, monitoring Channels.
 
-## 12. Planning indicatif (MVP ~6–8 semaines)
+## 12. Planning indicatif - Deux Dashboards MVP (~9 semaines)
 
-- S1: Phases 0–2 (bootstrap front/back)
-- S2: Phases 3–4 (clients, projets, jalons)
-- S3: Phase 5 (tâches/kanban/comments)
-- S4: Phases 6–7 (documents S3, PDF)
-- S5: Phase 8 (paiements CinetPay)
-- S6: Phases 9–10 (temps réel, tâches planifiées)
-- S7: Phases 12–14 (observabilité, CI/CD, QA, go-live)
+**Priorisation Dashboard Client d'abord (valeur client maximale)**
+
+**Semaines 1-3 : Fondations + Dashboard Client Base**
+- S1 : Phase 0-1 (bootstrap Django/DRF/S3 + backend fondation)
+- S2 : Phase 2 (frontend client + auth)
+- S3 : Phase 3 (projets & tâches côté client)
+
+**Semaines 4-6 : Dashboard Client Complet**  
+- S4 : Phase 4 (documents S3 + facturation client)
+- S5 : Phase 5 (paiements CinetPay robuste)
+- S6 : Tests intensifs Dashboard Client + corrections
+
+**Semaines 7-8 : Dashboard Admin Complet**
+- S7 : Phases 6-7 (admin KPIs + gestion clients/projets)  
+- S8 : Phase 8 (admin support + configuration)
+
+**Semaine 9 : Finition & Production**
+- S9 : Phase 9 (observabilité, sécurité, CI/CD, go-live)
+
+**Stack confirmée Django/DRF/S3 Only :**
+- Backend : Django 5 + DRF + PostgreSQL + Redis + S3
+- Frontend : Next.js + Tailwind + shadcn/ui  
+- Paiements : CinetPay + webhooks HMAC
+- Jobs : Celery + Beat
+- Monitoring : Sentry + PostHog
 
 ## 13. Références (pour mise en œuvre)
 

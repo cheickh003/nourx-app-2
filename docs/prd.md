@@ -21,40 +21,191 @@
 
 Créer un** ****portail client moderne, minimaliste (90% noir & blanc)** permettant aux clients NOURX de** ** **suivre l’avancement de leurs projets, collaborer sur les tâches/feuilles de route, consulter & payer devis/factures** , déposer des documents, ouvrir des réclamations, et gérer leurs paramètres.
 Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, clients, prospects, tâches, réclamations, devis & factures** et la configuration.
-**Sécurité** par** ****Supabase Auth + RLS** (Row Level Security),** ****Stockage** via Supabase Storage (signés/privés),** ****paiements**via CinetPay (checkout + webhook sécurisé** ****HMAC x-token** +** ** **/payment/check** ). ([Supabase](https://supabase.com/docs/guides/auth/server-side/nextjs?utm_source=chatgpt.com "Setting up Server-Side Auth for Next.js"),** **[CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
+**Sécurité** par** ****sessions Django + CSRF** ,** ****permissions DRF** (scoping par `client_id`),** ****Stockage** privé via S3 (URLs signées),** ****paiements** via CinetPay (checkout + webhook sécurisé** ****HMAC x-token** +** ** **/payment/check** ). ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
 
 **Design :** sobre, noir/blanc, micro-accents couleurs (états/rôles), composants** ****shadcn/ui** (copie de code sous contrôle projet, pas une lib à importer),** ****Tailwind** pour la grille & tokens. ([ui.shadcn.com](https://ui.shadcn.com/docs?utm_source=chatgpt.com "Introduction - Shadcn UI"),** **[v3.tailwindcss.com](https://v3.tailwindcss.com/docs/guides/nextjs?utm_source=chatgpt.com "Install Tailwind CSS with Next.js"))
 
 ---
 
-## 2) Périmètre MVP (fonctionnel)
+## 2) Périmètre MVP (fonctionnel) - Deux Dashboards Distincts
 
-### Côté Client (espace authentifié)
+### A) Dashboard Client (Portail Client Authentifié)
 
-1. **Dashboard** : résumé du projet courant (progression, prochaines échéances, tâches ouvertes, derniers docs, facture due).
-2. **Aperçu du projet** : description, KPIs, équipe NOURX visible, jalons & livrables.
-3. **Feuille de route (Roadmap)** : jalons (timeline), versions, états; commentaires.
-4. **Tâches** : liste/kanban, assignation (côté NOURX), pièces jointes, commentaires, checklists.
-5. **Factures & Devis** : consultation,** ****paiement en ligne CinetPay** (Mobile Money, cartes, wallets), suivi des statuts, export PDF. ([cinetpay.com](https://cinetpay.com/pricing?utm_source=chatgpt.com "Une tarification simple et équitable"))
-6. **Documents** : chargement/téléchargement sécurisé (Storage privé + URL signée), prévisualisation. ([Supabase](https://supabase.com/docs/guides/storage/security/access-control?utm_source=chatgpt.com "Storage Access Control | Supabase Docs"))
-7. **Réclamations** : création de ticket, statut, échanges.
-8. **Paramètres** : profil, préférences notification, moyens de contact.
+**Public cible :** Clients de NOURX souhaitant suivre leurs projets, factures et collaborer sur leurs dossiers.
 
-### Côté Admin (vous seul)
+**Fonctionnalités principales :**
 
-* **Projets** ,** ** **Clients** ,** ** **Prospects** ,** ** **Tâches** ,** ** **Réclamations** ,** ** **Devis & Factures** ,** ****Paramètres** (branding, moyens de paiement, modèles d’email, SLA).
-* **Paiements** : journal des tentatives, rapprochement automatique via webhook +** ** **/v2/payment/check** . ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/notification?utm_source=chatgpt.com "Prepare a notification page | CinetPay-Documentation"))
+1. **Dashboard Vue d'ensemble** : 
+   - Résumé des projets en cours du client
+   - Progression globale, prochaines échéances importantes
+   - Tâches ouvertes assignées au client
+   - Derniers documents partagés
+   - Factures en attente de paiement avec CTA "Payer"
+   - Notifications récentes (mises à jour projets, nouvelles tâches)
+
+2. **Mes Projets** : 
+   - Liste des projets du client (actifs et archivés)
+   - Détail par projet : description, KPIs, équipe NOURX, jalons & livrables
+   - Feuille de route (timeline) avec jalons, versions, statuts
+   - Commentaires et échanges sur les jalons
+
+3. **Mes Tâches** : 
+   - Vue kanban/liste des tâches assignées au client
+   - Commentaires, pièces jointes, checklists
+   - Statuts et priorités (lecture seule côté assignation)
+
+4. **Mes Factures & Devis** : 
+   - Consultation des devis et factures du client
+   - **Paiement en ligne CinetPay** (Mobile Money, cartes, wallets)
+   - Historique des paiements et reçus
+   - Export PDF des documents de facturation
+   - Alertes de factures dues
+
+5. **Documents de Projet** : 
+   - Accès aux documents partagés par NOURX
+   - Téléchargement sécurisé (S3 + URLs signées)
+   - Upload de documents clients si autorisé par projet
+   - Prévisualisation des fichiers compatibles
+
+6. **Support & Réclamations** : 
+   - Création de tickets de support liés à un projet
+   - Suivi du statut des réclamations
+   - Historique des échanges avec NOURX
+
+7. **Mon Profil** : 
+   - Informations du contact principal
+   - Préférences de notification
+   - Moyens de contact préférés
+
+### B) Dashboard Admin NOURX (Back-office Complet)
+
+**Public cible :** Vous (Admin NOURX) pour piloter l'ensemble de l'activité et gérer tous les aspects business.
+
+**Fonctionnalités principales :**
+
+1. **Dashboard Business** : 
+   - **KPIs Projets** : projets actifs, en pause, terminés, taux de progression
+   - **Pipeline Prospects** : leads, devis envoyés, taux de conversion
+   - **Alertes Opérationnelles** : tâches en retard, jalons à risque, SLA dépassés
+   - **Finance** : factures dues/overdue, paiements en anomalie, CA mensuel
+   - **Support** : tickets ouverts, délai moyen de résolution
+   - **Activité Temps Réel** : dernières connexions clients, actions récentes
+
+2. **Gestion Clients & Prospects** : 
+   - **Clients** : CRUD complet, historique projets, santé compte
+   - **Prospects** : pipeline commercial, qualification leads, suivi relances
+   - **Contacts** : gestion des interlocuteurs par société
+   - **Segmentation** : catégories clients, tags, notes internes
+
+3. **Pilotage Projets** : 
+   - Vue générale tous projets (kanban par statut)
+   - Création/modification projets, assignation équipes
+   - Planification jalons, roadmaps détaillées
+   - Suivi budgets vs. réalisé
+   - Rapports d'avancement automatisés
+
+4. **Gestion Tâches & Workload** : 
+   - Vue globale toutes tâches (tous projets)
+   - Assignation, priorisation, planification
+   - Suivi workload équipe NOURX
+   - Alertes retards et goulots d'étranglement
+
+5. **Facturation & Paiements** : 
+   - **Devis** : création, personnalisation, envoi, suivi acceptation
+   - **Factures** : génération, relances automatiques, export comptable
+   - **Paiements** : journal des tentatives, rapprochement via webhook
+   - **Analyse financière** : DSO, taux de paiement en ligne, revenus récurrents
+   - Intégration CinetPay : monitoring transactions, anomalies, remboursements
+
+6. **Gestion Documentaire** : 
+   - Bibliothèque centralisée tous documents
+   - Gestion des accès clients par projet
+   - Templates et modèles réutilisables
+   - Versioning et historique des modifications
+
+7. **Support & Relation Client** : 
+   - Gestion centralisée tous tickets clients
+   - Attribution, escalade, SLA
+   - Base de connaissance interne
+   - Historique complet des interactions
+
+8. **Configuration & Paramètres** : 
+   - **Branding** : logos, couleurs, templates emails
+   - **Paiements** : configuration CinetPay, moyens de paiement
+   - **Notifications** : règles d'alertes, modèles emails/SMS
+   - **SLA** : définition des engagements par type de service
+   - **Utilisateurs** : gestion comptes équipe (future extension)
 
 **Hors périmètre MVP** : multi-équipes internes, portail multi-entreprises, relances automatiques multicanal, e-sign avancée.
 
 ---
 
-## 3) Personas & parcours clés
+## 3) Personas & parcours clés par Dashboard
 
-* **Client** (acheteur / décideur) : se connecte, consulte l’état d’avancement, téléverse des documents,** ****paye une facture** en XOF via Mobile Money/carte, ouvre une réclamation si besoin. ([cinetpay.com](https://cinetpay.com/pricing?utm_source=chatgpt.com "Une tarification simple et équitable"))
-* **Admin NOURX** : crée un projet, jalons & tâches, émet devis/factures, surveille paiements (webhook + check API), répond aux tickets.
+### A) Parcours Client (Dashboard Client)
 
-**Flow Paiement** : Client → bouton « Payer » sur une facture → ouverture** ****checkout CinetPay** (SDK ou redirection recommandée iOS) → retour →** ****webhook (x-token HMAC)** valide la notif →** ****/payment/check** confirme définitivement → facture marquée « payée ». ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/initialisation?utm_source=chatgpt.com "Initiating a payment | CinetPay-Documentation"))
+**Persona :** **Responsable projet côté client** (acheteur, décideur, ou chef de projet interne)
+
+**Parcours types :**
+
+1. **Suivi de projet quotidien** :
+   - Connexion → Dashboard → consultation progression projets
+   - Vérification des tâches assignées et commentaires NOURX
+   - Consultation des nouveaux documents partagés
+   - Réponse aux commentaires sur jalons
+
+2. **Gestion financière** :
+   - Réception notification facture → Connexion → Section "Mes Factures"
+   - Consultation détail facture → **Paiement CinetPay** (Mobile Money, carte)
+   - Téléchargement reçu/facture PDF
+   - Suivi historique paiements
+
+3. **Collaboration projet** :
+   - Upload documents demandés par NOURX
+   - Validation/commentaires sur livrables
+   - Signalement problème → Création ticket support
+
+4. **Communication & support** :
+   - Ouverture ticket réclamation lié à un projet
+   - Suivi résolution avec échanges NOURX
+   - Mise à jour profil et préférences contact
+
+**Flow Paiement Client** : 
+Facture due → Email notification → Connexion Dashboard → "Mes Factures" → Détail facture → Bouton "Payer" → **Checkout CinetPay** (SDK ou redirection iOS) → Paiement Mobile Money/Carte → Retour Dashboard → **Webhook HMAC** + **/payment/check** → Facture marquée "Payée" + Notification client
+
+### B) Parcours Admin NOURX (Dashboard Admin)
+
+**Persona :** **Vous (Dirigeant NOURX)** - vision complète business et opérationnelle
+
+**Parcours types :**
+
+1. **Pilotage quotidien** :
+   - Connexion → Dashboard Business → KPIs projets, finances, support
+   - Identification alertes (retards, factures overdue, tickets urgents)
+   - Priorisation actions de la journée
+
+2. **Gestion commerciale** :
+   - Pipeline prospects → Qualification leads
+   - Création devis → Envoi client → Suivi acceptation
+   - Conversion prospect → client → Création projet
+
+3. **Suivi projets opérationnel** :
+   - Vue kanban tous projets → Identification goulots
+   - Planification jalons/tâches → Assignation équipe
+   - Contrôle budget vs. réalisé → Ajustements
+
+4. **Gestion financière** :
+   - Génération factures → Envoi automatique
+   - Monitoring paiements CinetPay → Résolution anomalies
+   - Relances clients → Analyse DSO
+
+5. **Support & relation client** :
+   - Attribution tickets → Résolution → Clôture
+   - Analyse satisfaction → Actions correctives
+   - Mise à jour base connaissance
+
+**Flow Paiement Admin** :
+Facture émise → Envoi client → Monitoring Dashboard → **Webhook CinetPay** (x-token HMAC) → Vérification **/payment/check** → Rapprochement automatique → Notification interne → Mise à jour tableau de bord financier
 
 ---
 
@@ -149,35 +300,114 @@ Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, cl
 
 ---
 
-## 9) Structure des pages & éléments clés
+## 9) Structure des pages & éléments clés - Deux Applications Distinctes
 
-### Espace Client
+### A) Application Client (`app.nourx.com` ou `/client/`)
 
-* **/dashboard** : résumé projet, échéances, facture due (CTA Pay).
-* **/projet** (overview) : description, jalons, équipe NOURX.
-* **/feuille-de-route** : timeline + filtres par statut.
-* **/taches** : kanban/liste, recherche, commentaire en ligne.
-* **/factures-devis** : liste, détail, paiements, reçus, PDF.
-* **/documents** : dossier par projet, upload (drag’n’drop), liens signés.
-* **/reclamations** : création/suivi ticket.
-* **/parametres** : profil, notifications, RGPD.
+**Thème :** Interface épurée, focus sur l'essentiel client, navigation simplifiée
 
-### Admin (privé)
+**Pages principales :**
 
-* **/admin/projets** ,** ** **/admin/clients** ,** ** **/admin/prospects** ,** ** **/admin/taches** ,** ** **/admin/reclamations** ,** ** **/admin/factures-devis** ,** ** **/admin/parametres** .
+* **`/`** (Dashboard) : 
+  - Vue d'ensemble projets en cours
+  - Widget factures dues avec CTA "Payer"
+  - Dernières tâches et notifications
+  - Accès rapide aux sections importantes
+
+* **`/projets`** : 
+  - Liste projets actifs/archivés
+  - **`/projets/{id}`** : détail projet (description, jalons, équipe NOURX, documents)
+  - **`/projets/{id}/roadmap`** : feuille de route (timeline interactive + filtres)
+
+* **`/taches`** : 
+  - Vue kanban/liste des tâches assignées au client
+  - Filtres par projet/statut/priorité
+  - Modal détail tâche avec commentaires
+
+* **`/factures`** : 
+  - Liste devis et factures du client
+  - **`/factures/{id}`** : détail avec paiement CinetPay intégré
+  - Historique paiements et reçus
+  - Export PDF
+
+* **`/documents`** : 
+  - Arborescence par projet
+  - Upload/download sécurisé (S3 + URLs signées)
+  - Prévisualisation fichiers
+
+* **`/support`** : 
+  - **`/support/tickets`** : mes réclamations
+  - **`/support/nouveau`** : création ticket
+  - **`/support/{id}`** : détail/échanges ticket
+
+* **`/profil`** : 
+  - Informations personnelles
+  - Préférences notifications
+  - Moyens de contact
+  - Politique confidentialité
+
+### B) Application Admin NOURX (`admin.nourx.com` ou `/admin/`)
+
+**Thème :** Interface dense, tableaux de bord détaillés, outils de pilotage avancés
+
+**Pages principales :**
+
+* **`/`** (Dashboard Business) : 
+  - KPIs temps réel (projets, finance, support)
+  - Alertes opérationnelles prioritaires
+  - Activité récente clients
+  - Raccourcis actions fréquentes
+
+* **`/commercial`** :
+  - **`/commercial/prospects`** : pipeline, qualification, relances
+  - **`/commercial/clients`** : CRUD complet, historique, segmentation
+  - **`/commercial/devis`** : création, suivi, conversion
+
+* **`/projets`** :
+  - **`/projets/kanban`** : vue générale tous projets par statut
+  - **`/projets/{id}`** : pilotage détaillé (budget, planning, équipe)
+  - **`/projets/{id}/taches`** : gestion fine tâches projet
+  - **`/projets/reporting`** : tableaux de bord et analyses
+
+* **`/taches`** :
+  - Vue globale toutes tâches (tous projets)
+  - Gestion workload équipe
+  - Planification et priorisation
+  - Alertes retards
+
+* **`/facturation`** :
+  - **`/facturation/factures`** : génération, envoi, relances
+  - **`/facturation/paiements`** : monitoring CinetPay, anomalies
+  - **`/facturation/analytics`** : DSO, taux paiement, revenus
+
+* **`/documents`** :
+  - Bibliothèque centralisée
+  - Gestion accès par client/projet
+  - Templates et modèles
+
+* **`/support`** :
+  - **`/support/tickets`** : gestion centralisée tous tickets
+  - **`/support/sla`** : monitoring engagements
+  - **`/support/base-connaissance`** : articles internes
+
+* **`/parametres`** :
+  - **`/parametres/systeme`** : branding, configuration générale
+  - **`/parametres/paiements`** : CinetPay, moyens de paiement
+  - **`/parametres/notifications`** : rules engine emails/SMS
+  - **`/parametres/equipe`** : gestion utilisateurs (future extension)
 
 ---
 
-## 10) API interne (Route Handlers) – exemples
+## 10) API serveur (Django) – exemples
 
 * `POST /api/invoices/:id/pay` → init CinetPay (SDK ou lien), crée** **`payment_attempt`.
-* `POST /api/webhooks/cinetpay` →** ** **désactivez body parser, lisez raw** , vérifiez** **`x-token` (HMAC),** ****puis** appelez** ****/payment/check** pour décider** **`paid|failed|pending`. ([nextjs.org](https://nextjs.org/docs/pages/building-your-application/routing/api-routes?utm_source=chatgpt.com "API Routes"),** **[CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/verification?utm_source=chatgpt.com "Checking a transaction"))
+* `POST /api/payments/webhook` (Django/DRF) → lire `request.body` brut, vérifier header** **`x-token` (HMAC), comparer montant/devise/référence, puis appeler** **`/v2/payment/check`** pour décider `paid|failed|pending`.
 
 ---
 
 ## 11) Analytics, logs & monitoring
 
-* **Sentry** : erreurs front (RSC/Client) et back (Route Handlers). ([docs.sentry.io](https://docs.sentry.io/platforms/javascript/guides/nextjs/?utm_source=chatgpt.com "Sentry for Next.js"))
+* **Sentry** : erreurs front (RSC/Client) et back (Django). ([docs.sentry.io](https://docs.sentry.io/platforms/javascript/guides/nextjs/?utm_source=chatgpt.com "Sentry for Next.js"))
 * **PostHog** : parcours, événements (paiement tenté, payé, upload doc),** ****replay** sessions. ([posthog.com](https://posthog.com/docs/libraries/next-js?utm_source=chatgpt.com "Next.js - Docs"))
 
 ---
@@ -193,35 +423,89 @@ Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, cl
 
 ## 13) Sécurité & conformité
 
-* **RLS** stricte sur toutes les entités clients.** ****Realtime** respecte les mêmes politiques. ([Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security?utm_source=chatgpt.com "Row Level Security | Supabase Docs"))
-* **Storage privé** +** ****signed URLs** temporaires. ([Supabase](https://supabase.com/docs/reference/javascript/storage-from-createsignedurl?utm_source=chatgpt.com "JavaScript: Create a signed URL"))
-* **Webhook** : IP allowlist si disponible côté infra, vérif** **`x-token` + recheck API. ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
-* **CSP** &** ****CSRF** : Server Actions & origins validés. ([nextjs.org](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions?utm_source=chatgpt.com "next.config.js: serverActions"))
+* **Permissions DRF + scoping** par `client_id` sur tous les objets (clients, projets, tâches, documents, factures, tickets).
+* **Stockage S3 privé** + **URLs signées** temporaires (lecture), presigned POST (upload direct) avec vérifications serveur (taille/MIME).
+* **Webhook** : IP allowlist si possible, vérif** **`x-token` + recheck API. ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
+* **CSP & CSRF** : origins autorisées, cookies `Secure`, HSTS, `SameSite` adapté.
 
 ---
 
-## 14) Plan de livraison (MVP → v1.1)
+## 14) Plan de livraison MVP - Focus Deux Dashboards (8 semaines)
 
-**Semaine 1–2** : Setup (Next.js + Tailwind + shadcn), Auth Supabase SSR, structure BDD & RLS, modèles UI. ([Supabase](https://supabase.com/docs/guides/auth/server-side/nextjs?utm_source=chatgpt.com "Setting up Server-Side Auth for Next.js"),** **[nextjs.org](https://nextjs.org/docs/app/getting-started/css?utm_source=chatgpt.com "Getting Started: CSS"))
-**Semaine 3–4** : Projets, Roadmap, Tâches, Documents (Storage + policies). ([Supabase](https://supabase.com/docs/guides/storage/security/access-control?utm_source=chatgpt.com "Storage Access Control | Supabase Docs"))
-**Semaine 5** : Devis/Factures, génération PDF.
-**Semaine 6** : Intégration CinetPay (init + webhook + check), QA paiements. ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/initialisation?utm_source=chatgpt.com "Initiating a payment | CinetPay-Documentation"))
-**Semaine 7** : Réclamations, notifications email.
-**Semaine 8** : Durcissement sécurité, Sentry/PostHog, UAT & go-live. ([docs.sentry.io](https://docs.sentry.io/platforms/javascript/guides/nextjs/?utm_source=chatgpt.com "Sentry for Next.js"),** **[posthog.com](https://posthog.com/docs/libraries/next-js?utm_source=chatgpt.com "Next.js - Docs"))
+### Phase 1 - Fondations (Semaines 1-2)
+**Livrables :**
+- Setup projet Django/DRF + Next.js (Django/DRF/S3 only stack)
+- Configuration S3 (django-storages) + PostgreSQL + Redis
+- **Squelettes des deux interfaces distinctes :**
+  - Dashboard Client : layout épuré, navigation simple
+  - Dashboard Admin : layout dense, sidebar étendue
+- Authentification sessions Django + CSRF + Next.js
+- Déploiement environnements (dev/staging)
+
+### Phase 2 - Core Client Dashboard (Semaines 3-4)
+**Focus : MVP du portail client opérationnel**
+- Auth client + profil de base
+- Dashboard client : vue d'ensemble projets
+- Section "Mes Projets" : liste, détail, roadmap basique
+- Section "Mes Tâches" : kanban simplifié
+- Permissions DRF : scope strict par client_id
+- Tests d'acceptation parcours client
+
+### Phase 3 - Documents & Finance Client (Semaine 5)
+**Focus : Fonctionnalités critiques client**
+- Système documentaire S3 : upload/download sécurisé
+- Section "Mes Factures" : consultation, historique
+- Génération PDF factures (WeasyPrint)
+- Intégration CinetPay : initialisation paiement
+- Interface paiement côté client
+
+### Phase 4 - Paiements & Robustesse (Semaine 6)
+**Focus : Sécurisation paiements CinetPay**
+- Webhook CinetPay : vérification HMAC x-token
+- Re-check `/v2/payment/check` obligatoire
+- Journal paiements et réconciliation
+- Tests paiements (mocks + réel staging)
+- Monitoring erreurs/anomalies
+
+### Phase 5 - Dashboard Admin Core (Semaine 7)
+**Focus : Pilotage business pour vous**
+- Dashboard Admin : KPIs projets, finances, alertes
+- Gestion clients/prospects : CRUD complet
+- Pilotage projets : vue kanban globale
+- Facturation admin : génération, envoi, suivi
+- Gestion tâches : assignation, priorisation
+
+### Phase 6 - Admin Avancé & Support (Semaine 8)
+**Focus : Outils de gestion avancés**
+- Support : tickets, SLA, résolution
+- Configuration système : branding, paramètres
+- Notifications automatiques (Celery + Beat)
+- Documentation admin et formation
+- Tests d'acceptation parcours admin
+
+### Phase 7 - Finition & Go-Live (Semaine 9)
+**Focus : Production ready**
+- Observabilité : Sentry (Django + Next.js), PostHog
+- Sécurité : durcissement, HSTS, rate-limiting
+- Performance : optimisation requêtes, cache
+- UAT complète : clients test + parcours admin
+- Documentation utilisateur et runbooks
+
+**Priorité absolue :** Dashboard Client opérationnel (Phases 1-4) avant Dashboard Admin, car c'est l'interface quotidienne de vos clients.
 
 ---
 
 ## 15) Environnement & variables
 
-* `NEXT_PUBLIC_SUPABASE_URL`,** **`NEXT_PUBLIC_SUPABASE_ANON_KEY` (client),** **`SUPABASE_SERVICE_ROLE_KEY`(serveur). ([Supabase](https://supabase.com/docs/guides/auth/server-side/nextjs?utm_source=chatgpt.com "Setting up Server-Side Auth for Next.js"))
-* `CINETPAY_APIKEY`,** **`CINETPAY_SITE_ID`,** **`CINETPAY_SECRET_KEY` (HMAC),** **`CINETPAY_NOTIFY_URL`. ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
-* `SENTRY_DSN`,** **`POSTHOG_KEY`,** **`POSTHOG_HOST`. ([docs.sentry.io](https://docs.sentry.io/platforms/javascript/guides/nextjs/?utm_source=chatgpt.com "Sentry for Next.js"),** **[posthog.com](https://posthog.com/docs/libraries/next-js?utm_source=chatgpt.com "Next.js - Docs"))
+* `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_REGION_NAME` (S3 via django-storages; en dev, `AWS_S3_ENDPOINT_URL` pour MinIO).
+* `CINETPAY_APIKEY`, `CINETPAY_SITE_ID`, `CINETPAY_SECRET_KEY` (HMAC), `CINETPAY_NOTIFY_URL`.
+* `SENTRY_DSN`, `POSTHOG_KEY`, `POSTHOG_HOST`.
 
 ---
 
 ## 16) Tests & QA
 
-* **Unitaires** : policies RLS (via tests SQL), services paiement (mocks), parsing webhook (HMAC).
+* **Unitaires** : permissions DRF (scoping `client_id`), services paiement (mocks), parsing webhook (HMAC), CSRF.
 * **Intégration** : scénarios complet « facture → payée ».
 * **E2E** : Playwright (auth client, upload doc, pay, ticket).
 * **Charge** : checks table** **`payments` & journaux.
@@ -245,9 +529,9 @@ Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, cl
 
 > **Pourquoi je maintiens la stack proposée ?**
 >
-> * **Next.js App Router** = BFF cohérent (Server Actions/Route Handlers) et perfs modernes. ([nextjs.org](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware?utm_source=chatgpt.com "Getting Started: Route Handlers and Middleware"))
-> * **Supabase** = Auth + Postgres +** ****RLS** + Storage + Realtime bien intégrés (sécurité côté DB). ([Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security?utm_source=chatgpt.com "Row Level Security | Supabase Docs"))
-> * **CinetPay** = passerelle locale adaptée CI (Mobile Money, cartes,** ** **HMAC + check** ). ([cinetpay.com](https://cinetpay.com/pricing?utm_source=chatgpt.com "Une tarification simple et équitable"),** **[CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
+> * **Next.js App Router** = BFF moderne (Server Components) et perfs solides. ([nextjs.org](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware?utm_source=chatgpt.com "Getting Started: Route Handlers and Middleware"))
+> * **Django/DRF** = maturité, sessions/CSRF, Admin natif, écosystème riche (Channels, Celery, storages S3).
+> * **CinetPay** = passerelle locale adaptée CI (Mobile Money, cartes, **HMAC + check**). ([cinetpay.com](https://cinetpay.com/pricing?utm_source=chatgpt.com "Une tarification simple et équitable"))
 > * **shadcn/ui + Tailwind** = design minimaliste, contrôle total du code UI. ([ui.shadcn.com](https://ui.shadcn.com/docs?utm_source=chatgpt.com "Introduction - Shadcn UI"))
 
 ---
@@ -256,19 +540,19 @@ Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, cl
 
 **Installation Tailwind + Next** (App Router) : suivre guide officiel. ([nextjs.org](https://nextjs.org/docs/app/getting-started/css?utm_source=chatgpt.com "Getting Started: CSS"))
 
-**Auth SSR**
+**Auth (Sessions Django + CSRF)**
 
-* Créer** **`utils/supabase/client.ts` et** **`server.ts` avec** **`@supabase/ssr`, ajouter** **`middleware.ts` pour refresh de tokens. ([Supabase](https://supabase.com/docs/guides/auth/server-side/nextjs?utm_source=chatgpt.com "Setting up Server-Side Auth for Next.js"))
+* Côté Next.js: toujours appeler l’API avec `credentials: 'include'` ; récupérer le cookie `csrftoken` (premier GET) puis envoyer `X-CSRFToken` sur POST/PUT/PATCH/DELETE.
 
-**Webhook CinetPay (pseudo-code Route Handler)**
+**Webhook CinetPay (vue Django/DRF – pseudo-code)**
 
-* `app/api/webhooks/cinetpay/route.ts` :
-  * Lire headers + form data, reconstruire la chaîne,** **`hash_hmac('sha256', data, SECRET_KEY)` ; comparer à** **`x-token`.
-  * Si valide →** **`fetch('/v2/payment/check', {apikey, site_id, transaction_id})` → maj facture. ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/hmac "CinetPay X-TOKEN HMAC | CinetPay-Documentation"))
+* `@api_view(['POST'])` sur `/api/payments/webhook/` :
+  * Lire `request.body` brut + headers, reconstruire la chaîne, calculer `HMAC-SHA256(secret, data)` et comparer à `x-token`.
+  * Si valide → appeler `/v2/payment/check` (`apikey`, `site_id`, `transaction_id`) → mettre à jour facture/paiement (idempotent).
 
-**Policies Storage**
+**Stockage S3**
 
-* Activer RLS sur** **`storage.objects` et autoriser** **`select/insert` conditionnellement (appartenance au** **`project_id`).** ****Partager** via** **`createSignedUrl` (expire). ([Supabase](https://supabase.com/docs/guides/storage/security/access-control?utm_source=chatgpt.com "Storage Access Control | Supabase Docs"))
+* Upload direct via presigned POST généré par Django (policy + signature). Lecture via URL signée avec expiration. Filtrer MIME/taille, antivirus optionnel (ClamAV) en tâche Celery.
 
 ---
 
@@ -276,12 +560,31 @@ Côté interne, un** ****dash admin (vous seul)** pour piloter** ****projets, cl
 
 * **iOS / cookies en pop-up** → privilégier** ****redirection** pour checkout (SDK Seamless peut rediriger sur iOS). ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/initialisation?utm_source=chatgpt.com "Initiating a payment | CinetPay-Documentation"))
 * **Notifications opérateurs en deux temps** (ex.** ** *WAITING_FOR_CUSTOMER* ) →** ****ne jamais** conclure sans** ** **/payment/check** . ([CinetPay Documentation](https://docs.cinetpay.com/api/1.0-en/checkout/notification?utm_source=chatgpt.com "Prepare a notification page | CinetPay-Documentation"))
-* **Mauvaise configuration RLS** → revue de sécurité + tests SQL automatisés. ([Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security?utm_source=chatgpt.com "Row Level Security | Supabase Docs"))
+* **Mauvaises permissions API** → tests DRF systématiques (scoping `client_id`), revues de sécurité, checklists déploiement.
 
 ---
 
-### Conclusion
+### Conclusion - Version Django/DRF/S3 Only avec Deux Dashboards
 
-La stack** ****Next.js + Tailwind + shadcn/ui + Supabase + CinetPay** colle parfaitement à votre besoin :** ****rapidité de dev, contrôle UX, sécurité par RLS, paiement local fiable** (HMAC + check). On peut enrichir ensuite (relances, e-signature, intégrations). Si vous souhaitez accélérer encore** ** **l’admin** ,** ****Refine** est un excellent accélérateur sans remettre en cause le portail client. ([refine.dev](https://refine.dev/docs/?utm_source=chatgpt.com "Overview | Refine"))
+Cette spécification détaille une **architecture Django/DRF/S3 only** moderne avec **deux dashboards distincts et complémentaires** :
 
-Souhaitez-vous que je vous génère** ** **l’arborescence du projet** , les** ****migrations SQL Supabase** (tables + RLS) et un** ****squelette de Route Handlers** (webhook/paiement) pour démarrer immédiatement ?
+1. **Dashboard Client** : Interface épurée pour le suivi projet, paiements CinetPay et collaboration
+2. **Dashboard Admin NOURX** : Back-office complet pour le pilotage business, gestion clients/prospects et configuration
+
+**Stack technique confirmée :**
+- **Backend** : Django 5 + DRF (sessions/CSRF) + PostgreSQL + Redis + S3 (django-storages)
+- **Frontend** : Next.js (App Router) + Tailwind CSS + shadcn/ui
+- **Paiements** : CinetPay (webhook HMAC + /payment/check)
+- **Temps réel** : Django Channels (optionnel)
+- **Jobs** : Celery + Beat
+
+**Avantages de cette approche :**
+- **Séparation claire** des responsabilités et interfaces utilisateur
+- **Sécurité robuste** avec permissions DRF scopées par client
+- **Scalabilité** : chaque dashboard peut évoluer indépendamment
+- **UX optimisée** : interfaces adaptées à chaque type d'utilisateur
+- **Maintenance simplifiée** : stack cohérente Django/DRF/S3 only
+
+Le planning priorise le **Dashboard Client** (semaines 1-6) puis le **Dashboard Admin** (semaines 7-9) pour maximiser la valeur client rapidement.
+
+**Prêt à développer** : Cette spécification contient tous les éléments techniques, fonctionnels et de sécurité nécessaires pour commencer le développement immédiatement.
