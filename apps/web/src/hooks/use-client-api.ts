@@ -6,7 +6,8 @@ import type {
   Invoice, 
   Document, 
   SupportTicket, 
-  DashboardStats 
+  DashboardStats,
+  Client
 } from '@/types/client'
 
 // Generic hook for API data fetching
@@ -73,6 +74,11 @@ export function useProjects() {
 
 export function useProject(id: number) {
   return useApiData<Project>(`/api/projects/${id}`, [id])
+}
+
+// Clients hooks
+export function useClients() {
+  return useApiData<Client[]>('/api/clients')
 }
 
 // Tasks hooks
