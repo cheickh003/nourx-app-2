@@ -5,6 +5,8 @@ from django.utils import timezone
 from apps.clients.models import Client, ClientMember
 from apps.projects.models import Project, Milestone
 from apps.tasks.models import Task
+from apps.billing.models import Invoice, InvoiceItem
+import boto3
 
 
 class Command(BaseCommand):
@@ -133,6 +135,70 @@ class Command(BaseCommand):
                 "created_by": staff,
                 "order": 1,
             },
+        )
+
+        # Ensure S3 bucket exists and upload a sample document
+        try:
+            import os
+            import uuid as _uuid
+            s3 = boto3.client(
+                's3',
+                endpoint_url=os.environ.get('AWS_S3_ENDPOINT_URL'),
+                aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+                region_name=os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
+            )
+            bucket = os.environ.get('AWS_STORAGE_BUCKET_NAME', 'nourx-bucket')
+            # create bucket if missing (MinIO ignores if exists)
+            try:
+                s3.create_bucket(Bucket=bucket)
+            except Exception:
+                pass
+            key = f"projects/{project1.id}/documents/{_uuid.uuid4()}/bienvenue.txt"
+            s3.put_object(Bucket=bucket, Key=key, Body=b"Bienvenue sur NOURX", ContentType="text/plain")
+            # Create a Document record bound to uploaded object
+            from apps.documents.models import Document
+            doc, _ = Document.objects.get_or_create(
+                project=project1,
+                file_name="bienvenue.txt",
+                defaults={
+                    'title': 'Bienvenue',
+                    'description': 'Guide de démarrage',
+                    'file_size': 20,
+                    'mime_type': 'text/plain',
+                    's3_bucket': bucket,
+                    's3_key': key,
+                    'visibility': 'public',
+                }
+            )
+            if not doc.file:
+                doc.file.name = key
+                doc.save()
+        except Exception:
+            pass
+
+        # Create a sample invoice for Client A
+        inv, _ = Invoice.objects.get_or_create(
+            client=client_a,
+            project=project1,
+            title="Acompte projet",
+            defaults={
+                'description': 'Acompte initial',
+                'status': 'sent',
+                'currency': 'EUR',
+                'payment_terms': 'Paiement à 30 jours',
+                'due_date': timezone.now().date(),
+            }
+        )
+        InvoiceItem.objects.get_or_create(
+            invoice=inv,
+            order=1,
+            defaults={
+                'title': 'Acompte',
+                'description': 'Démarrage du projet',
+                'quantity': 1,
+                'unit_price': 500.00,
+            }
         )
 
         self.stdout.write(self.style.SUCCESS("✅ Phase 3 demo data seeded."))

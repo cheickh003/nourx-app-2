@@ -22,10 +22,25 @@ class UserProfileSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(read_only=True)
     client_ids = serializers.SerializerMethodField()
     
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = User
-        fields = ["id", "username", "email", "first_name", "last_name", "profile", "client_ids"]
-        read_only_fields = ["id", "username"]
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "is_staff",
+            "is_superuser",
+            "is_active",
+            "profile",
+            "client_ids",
+        ]
+        read_only_fields = ["id", "username", "is_staff", "is_superuser"]
     
     def get_client_ids(self, obj):
         """

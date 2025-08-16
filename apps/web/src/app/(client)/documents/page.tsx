@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ClientLayout } from '@/components/layout/client-layout'
 import { 
   FileText,
@@ -11,20 +13,40 @@ import {
   Calendar,
   User,
   FolderOpen,
-  Upload
+  Upload,
+  Search,
+  Filter,
+  ChevronDown,
+  X
 } from 'lucide-react'
-import { useDocuments } from '@/hooks/use-client-api'
+import { useDocuments, useProjects, useApiMutation } from '@/hooks/use-client-api'
 
-function DocumentCard({ document }: { document: any }) {
-  const getFileIcon = (mimetype: string) => {
-    if (mimetype.includes('pdf')) return '📄'
-    if (mimetype.includes('image')) return '🖼️'
-    if (mimetype.includes('video')) return '🎥'
-    if (mimetype.includes('audio')) return '🎵'
-    if (mimetype.includes('text')) return '📝'
-    if (mimetype.includes('spreadsheet') || mimetype.includes('excel')) return '📊'
-    if (mimetype.includes('presentation') || mimetype.includes('powerpoint')) return '📽️'
-    return '📁'
+function DocumentCard({ document, onDownload }: { document: any; onDownload: (doc: any) => void }) {
+  const getFileIcon = (extension: string) => {
+    switch (extension?.toLowerCase()) {
+      case 'pdf': return '📄'
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'bmp':
+      case 'webp': return '🖼️'
+      case 'mp4':
+      case 'avi':
+      case 'mov': return '🎥'
+      case 'mp3':
+      case 'wav': return '🎵'
+      case 'txt': return '📝'
+      case 'xls':
+      case 'xlsx': return '📊'
+      case 'ppt':
+      case 'pptx': return '📽️'
+      case 'doc':
+      case 'docx': return '📝'
+      case 'zip':
+      case 'rar': return '🗜️'
+      default: return '📁'
+    }
   }
 
   const formatFileSize = (size: number) => {
@@ -35,9 +57,9 @@ function DocumentCard({ document }: { document: any }) {
 
   const getVisibilityColor = (visibility: string) => {
     switch (visibility) {
-      case 'public': return 'success'
-      case 'client': return 'default'
+      case 'public': return 'default'
       case 'internal': return 'secondary'
+      case 'restricted': return 'destructive'
       default: return 'secondary'
     }
   }
@@ -45,8 +67,8 @@ function DocumentCard({ document }: { document: any }) {
   const getVisibilityLabel = (visibility: string) => {
     switch (visibility) {
       case 'public': return 'Public'
-      case 'client': return 'Client'
       case 'internal': return 'Interne'
+      case 'restricted': return 'Restreint'
       default: return visibility
     }
   }
@@ -56,20 +78,27 @@ function DocumentCard({ document }: { document: any }) {
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
           {/* File Icon */}
-          <div className="text-2xl">{getFileIcon(document.mimetype)}</div>
+          <div className="text-2xl">{getFileIcon(document.file_extension)}</div>
           
           <div className="flex-1 min-w-0">
             {/* Header */}
-            <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium truncate">{document.title}</h3>
                 <p className="text-sm text-muted-foreground truncate">
-                  {document.filename}
+                  {document.file_name}
                 </p>
               </div>
-              <Badge variant={getVisibilityColor(document.visibility)} className="ml-2">
-                {getVisibilityLabel(document.visibility)}
-              </Badge>
+              <div className="flex gap-1">
+                <Badge variant={getVisibilityColor(document.visibility)} className="text-xs">
+                  {getVisibilityLabel(document.visibility)}
+                </Badge>
+                {document.version_status === 'approved' && (
+                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                    v{document.version}
+                  </Badge>
+                )}
+              </div>
             </div>
 
             {/* Description */}
@@ -82,34 +111,61 @@ function DocumentCard({ document }: { document: any }) {
             {/* Metadata */}
             <div className="space-y-1 text-xs text-muted-foreground mb-3">
               <div className="flex items-center justify-between">
-                <span>Taille: {formatFileSize(document.size)}</span>
+                <span>Taille: {formatFileSize(document.file_size)}</span>
                 <span>{new Date(document.created_at).toLocaleDateString('fr-FR')}</span>
               </div>
-              {document.uploaded_by && (
+              <div className="flex items-center justify-between">
+                {document.uploaded_by_name && (
+                  <div className="flex items-center">
+                    <User className="h-3 w-3 mr-1" />
+                    <span>Par {document.uploaded_by_name}</span>
+                  </div>
+                )}
+                {document.download_count > 0 && (
+                  <span>{document.download_count} téléchargement{document.download_count > 1 ? 's' : ''}</span>
+                )}
+              </div>
+              {document.project_title && (
                 <div className="flex items-center">
-                  <User className="h-3 w-3 mr-1" />
-                  <span>Partagé par {document.uploaded_by.first_name} {document.uploaded_by.last_name}</span>
+                  <FolderOpen className="h-3 w-3 mr-1" />
+                  <span>Projet: {document.project_title}</span>
+                </div>
+              )}
+              {document.tag_list && document.tag_list.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {document.tag_list.slice(0, 3).map((tag: string, idx: number) => (
+                    <span key={idx} className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-xs">
+                      {tag}
+                    </span>
+                  ))}
+                  {document.tag_list.length > 3 && (
+                    <span className="text-gray-500">+{document.tag_list.length - 3}</span>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Actions */}
             <div className="flex gap-2">
-              {document.download_url && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={document.download_url} target="_blank" rel="noopener noreferrer">
-                    <Download className="h-3 w-3 mr-1" />
-                    Télécharger
-                  </a>
-                </Button>
-              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onDownload(document)}
+                disabled={document.version_status !== 'approved'}
+              >
+                <Download className="h-3 w-3 mr-1" />
+                Télécharger
+              </Button>
               
-              {document.mimetype.includes('pdf') || document.mimetype.includes('image') ? (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={document.download_url} target="_blank" rel="noopener noreferrer">
-                    <Eye className="h-3 w-3 mr-1" />
-                    Aperçu
-                  </a>
+              {document.is_image || document.is_pdf ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => onDownload(document)}
+                  disabled={document.version_status !== 'approved'}
+                >
+                  <Eye className="h-3 w-3 mr-1" />
+                  Aperçu
                 </Button>
               ) : null}
             </div>
@@ -121,7 +177,47 @@ function DocumentCard({ document }: { document: any }) {
 }
 
 export default function DocumentsPage() {
-  const { data: documents, loading, error } = useDocuments()
+  const { data: documents, loading, error, refetch } = useDocuments()
+  const { data: projects } = useProjects()
+  const downloadMutation = useApiMutation()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedProject, setSelectedProject] = useState<string>('')
+  const [selectedVisibility, setSelectedVisibility] = useState<string>('')
+
+  // Filter documents
+  const filteredDocuments = documents?.filter(doc => {
+    const matchesSearch = !searchTerm || 
+      doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesProject = !selectedProject || 
+      doc.project?.toString() === selectedProject
+    
+    const matchesVisibility = !selectedVisibility || 
+      doc.visibility === selectedVisibility
+    
+    return matchesSearch && matchesProject && matchesVisibility
+  }) || []
+
+  const handleDownload = async (document: any) => {
+    try {
+      const downloadData = await downloadMutation.mutate(`/api/documents/${document.id}/download/`, 'GET')
+      
+      // Open download URL in new tab
+      if (downloadData?.download_url) {
+        window.open(downloadData.download_url, '_blank')
+      }
+    } catch (error) {
+      console.error('Erreur lors du téléchargement:', error)
+    }
+  }
+
+  const clearFilters = () => {
+    setSearchTerm('')
+    setSelectedProject('')
+    setSelectedVisibility('')
+  }
 
   if (loading) {
     return (
@@ -155,15 +251,7 @@ export default function DocumentsPage() {
     )
   }
 
-  // Group documents by project
-  const documentsByProject = documents?.reduce((acc: any, doc: any) => {
-    const projectId = doc.project_id || 'other'
-    if (!acc[projectId]) {
-      acc[projectId] = []
-    }
-    acc[projectId].push(doc)
-    return acc
-  }, {}) || {}
+  // Remove the old documentsByProject logic as we're now using a flat list with filters
 
   return (
     <ClientLayout title="Documents">
@@ -177,7 +265,7 @@ export default function DocumentsPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
@@ -196,7 +284,7 @@ export default function DocumentsPage() {
                 <FolderOpen className="h-5 w-5 text-blue-600" />
                 <div>
                   <div className="text-2xl font-bold text-blue-600">
-                    {Object.keys(documentsByProject).length}
+                    {new Set(documents?.map(d => d.project).filter(Boolean)).size || 0}
                   </div>
                   <p className="text-sm text-muted-foreground">Projets avec documents</p>
                 </div>
@@ -219,42 +307,109 @@ export default function DocumentsPage() {
               </div>
             </CardContent>
           </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-purple-600" />
+                <div>
+                  <div className="text-2xl font-bold text-purple-600">
+                    {documents?.reduce((sum, d) => sum + (d.download_count || 0), 0) || 0}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Téléchargements</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Documents by Project */}
-        {Object.keys(documentsByProject).length === 0 ? (
+        {/* Search and Filters */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    placeholder="Rechercher des documents..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <select 
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="px-3 py-2 border rounded-md bg-white"
+                >
+                  <option value="">Tous les projets</option>
+                  {projects?.map(project => (
+                    <option key={project.id} value={project.id.toString()}>
+                      {project.title}
+                    </option>
+                  ))}
+                </select>
+                
+                <select 
+                  value={selectedVisibility}
+                  onChange={(e) => setSelectedVisibility(e.target.value)}
+                  className="px-3 py-2 border rounded-md bg-white"
+                >
+                  <option value="">Toutes visibilités</option>
+                  <option value="public">Public</option>
+                  <option value="internal">Interne</option>
+                  <option value="restricted">Restreint</option>
+                </select>
+                
+                {(searchTerm || selectedProject || selectedVisibility) && (
+                  <Button variant="outline" size="sm" onClick={clearFilters}>
+                    <X className="h-4 w-4 mr-1" />
+                    Effacer
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            {filteredDocuments.length !== documents?.length && (
+              <p className="text-sm text-muted-foreground mt-2">
+                {filteredDocuments.length} document{filteredDocuments.length > 1 ? 's' : ''} trouvé{filteredDocuments.length > 1 ? 's' : ''}
+                {documents?.length && ` sur ${documents.length} au total`}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Documents List */}
+        {filteredDocuments.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <FileText className="mx-auto h-12 w-12 mb-4 opacity-50 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Aucun document disponible</h3>
+              <h3 className="text-lg font-medium mb-2">
+                {documents?.length === 0 ? 'Aucun document disponible' : 'Aucun document ne correspond aux filtres'}
+              </h3>
               <p className="text-muted-foreground">
-                L'équipe NOURX partagera vos documents de projet ici.
+                {documents?.length === 0 
+                  ? 'L\'équipe NOURX partagera vos documents de projet ici.'
+                  : 'Essayez de modifier vos critères de recherche.'}
               </p>
+              {documents?.length > 0 && (
+                <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                  Effacer les filtres
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-8">
-            {Object.entries(documentsByProject).map(([projectId, projectDocuments]: [string, any]) => (
-              <div key={projectId}>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FolderOpen className="h-5 w-5" />
-                      {projectId === 'other' ? 'Documents généraux' : `Projet #${projectId}`}
-                    </CardTitle>
-                    <CardDescription>
-                      {(projectDocuments as any[]).length} document{(projectDocuments as any[]).length > 1 ? 's' : ''}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {(projectDocuments as any[]).map((document: any) => (
-                        <DocumentCard key={document.id} document={document} />
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredDocuments.map((document: any) => (
+              <DocumentCard 
+                key={document.id} 
+                document={document} 
+                onDownload={handleDownload}
+              />
             ))}
           </div>
         )}

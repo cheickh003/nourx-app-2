@@ -2,6 +2,15 @@
 Core models for NOURX application.
 """
 from django.db import models
+
+
+class Setting(models.Model):
+    key = models.CharField(max_length=100, primary_key=True)
+    value = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.key
+
 from django.contrib.auth.models import User
 from django.utils import timezone
 import uuid

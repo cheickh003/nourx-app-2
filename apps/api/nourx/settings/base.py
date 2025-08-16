@@ -139,6 +139,9 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
+# DRF Router: make trailing slash optional to be resilient to proxies
+DEFAULT_ROUTER_TRAILING_SLASH = r'/?'
+
 # DRF Spectacular
 SPECTACULAR_SETTINGS = {
     "TITLE": "NOURX API",
@@ -187,15 +190,30 @@ CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 USE_S3 = config("USE_S3", default=True, cast=bool)
 
 if USE_S3:
-    # S3 settings
+    # Core S3/MinIO settings
     AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID", default="")
     AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY", default="")
     AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME", default="nourx-bucket")
     AWS_S3_REGION_NAME = config("AWS_S3_REGION_NAME", default="us-east-1")
     AWS_S3_ENDPOINT_URL = config("AWS_S3_ENDPOINT_URL", default=None)
     AWS_S3_USE_SSL = config("AWS_S3_USE_SSL", default=True, cast=bool)
-    AWS_S3_CUSTOM_DOMAIN = config("AWS_S3_CUSTOM_DOMAIN", default=None)
     AWS_DEFAULT_ACL = config("AWS_DEFAULT_ACL", default="private")
+
+    # URL generation behavior
+    AWS_S3_URL_PROTOCOL = config("AWS_S3_URL_PROTOCOL", default=("https:" if AWS_S3_USE_SSL else "http:"))
+    AWS_S3_ADDRESSING_STYLE = config("AWS_S3_ADDRESSING_STYLE", default="path")  # better with MinIO
+    AWS_S3_SIGNATURE_VERSION = config("AWS_S3_SIGNATURE_VERSION", default="s3v4")
+    AWS_QUERYSTRING_AUTH = config("AWS_QUERYSTRING_AUTH", default=True, cast=bool)
+    AWS_QUERYSTRING_EXPIRE = config("AWS_QUERYSTRING_EXPIRE", default=3600, cast=int)
+
+    # Custom domain for browser access (important when endpoint is internal like 'minio:9000')
+    # In dev with MinIO, prefer browser-accessible domain + include bucket for path-style
+    _bucket = AWS_STORAGE_BUCKET_NAME
+    AWS_S3_CUSTOM_DOMAIN = config(
+        "AWS_S3_CUSTOM_DOMAIN",
+        default=(f"localhost:9000/{_bucket}" if DEBUG and AWS_S3_ENDPOINT_URL else None),
+    )
+
     AWS_S3_OBJECT_PARAMETERS = {
         "CacheControl": "max-age=86400",
     }
@@ -217,7 +235,25 @@ EMAIL_PORT = config("EMAIL_PORT", default=1025, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=False, cast=bool)
+EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="nourx@localhost")
+
+# Ensure TLS/SSL are not both enabled simultaneously
+if EMAIL_USE_SSL:
+    EMAIL_USE_TLS = False
+
+# Support attachments policy
+SUPPORT_ALLOWED_MIME_TYPES = config(
+    "SUPPORT_ALLOWED_MIME_TYPES",
+    default=
+    "image/jpeg,image/png,image/gif,application/pdf,application/msword,"
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
+    "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
+    "text/plain,application/zip",
+    cast=lambda x: [i.strip() for i in x.split(",")],
+)
+SUPPORT_ATTACHMENT_MAX_SIZE = config("SUPPORT_ATTACHMENT_MAX_SIZE", default=20971520, cast=int)  # 20 MB
+FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="http://localhost:3000")
 
 # CinetPay Configuration
 CINETPAY_API_KEY = config("CINETPAY_API_KEY", default="")

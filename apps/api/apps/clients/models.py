@@ -65,16 +65,7 @@ class Client(BaseModel):
 
 
 class ClientMember(BaseModel):
-    """
-    User membership in a client organization.
-    """
-    ROLE_CHOICES = [
-        ("owner", "Propriétaire"),
-        ("admin", "Administrateur"),
-        ("member", "Membre"),
-        ("viewer", "Lecteur seul"),
-    ]
-    
+    """Simple link between a user account and a client (no per-member roles)."""
     user = models.ForeignKey(
         User, 
         on_delete=models.CASCADE,
@@ -87,16 +78,6 @@ class ClientMember(BaseModel):
         related_name="members",
         verbose_name="Client"
     )
-    role = models.CharField(
-        max_length=10,
-        choices=ROLE_CHOICES,
-        default="member",
-        verbose_name="Rôle"
-    )
-    
-    # Permissions spéciales
-    can_view_billing = models.BooleanField(default=False, verbose_name="Peut voir la facturation")
-    can_manage_team = models.BooleanField(default=False, verbose_name="Peut gérer l'équipe")
     
     class Meta:
         verbose_name = "Membre client"
@@ -104,8 +85,7 @@ class ClientMember(BaseModel):
         unique_together = [('user', 'client')]
         indexes = [
             models.Index(fields=['user', 'client']),
-            models.Index(fields=['role']),
         ]
     
     def __str__(self):
-        return f"{self.user.get_full_name() or self.user.username} - {self.client.name} ({self.get_role_display()})"
+        return f"{self.user.get_full_name() or self.user.username} - {self.client.name}"

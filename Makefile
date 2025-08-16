@@ -153,7 +153,7 @@ top: ## Show running processes in containers
 .PHONY: test
 test: ## Run backend tests (auth/health/schema)
 	@echo "$(BLUE)🧪 Running Django tests...$(NC)"
-	@docker-compose -f $(COMPOSE_FILE) exec web python manage.py test apps.accounts.tests apps.core.tests -v 2
+	@docker-compose -f $(COMPOSE_FILE) exec web python manage.py test apps.accounts.tests apps.core.tests -v 1
 	@echo "$(GREEN)✅ Tests completed!$(NC)"
 
 .PHONY: test-phase3
@@ -161,6 +161,25 @@ test-phase3: ## Run Phase 3 API tests (projects/tasks scoping)
 	@echo "$(BLUE)🧪 Running Phase 3 API tests...$(NC)"
 	@docker-compose -f $(COMPOSE_FILE) exec web python manage.py test apps.projects.tests apps.tasks.tests -v 1
 	@echo "$(GREEN)✅ Phase 3 tests passed!$(NC)"
+
+.PHONY: test-phase4
+test-phase4: ## Run Phase 4 API tests (documents/invoices)
+	@echo "$(BLUE)🧪 Running Phase 4 API tests...$(NC)"
+	@docker-compose -f $(COMPOSE_FILE) exec web python manage.py test apps.documents.tests apps.billing.tests -v 1
+	@echo "$(GREEN)✅ Phase 4 tests passed!$(NC)"
+
+.PHONY: test-all
+test-all: ## Run full backend tests (phases 1-5) with low verbosity
+	@echo "$(BLUE)🧪 Running full backend tests...$(NC)"
+	@docker-compose -f $(COMPOSE_FILE) exec web python manage.py test -v 1 \
+		apps.accounts.tests \
+		apps.core.tests \
+		apps.projects.tests \
+		apps.tasks.tests \
+		apps.documents.tests \
+		apps.billing.tests \
+		apps.payments.tests
+	@echo "$(GREEN)✅ Full test suite completed!$(NC)"
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage

@@ -51,7 +51,7 @@ class ClientMemberInline(admin.TabularInline):
     """
     model = ClientMember
     extra = 0
-    fields = ['user', 'role', 'can_view_billing', 'can_manage_team']
+    fields = ['user']
     autocomplete_fields = ['user']
 
 
@@ -60,19 +60,16 @@ class ClientMemberAdmin(admin.ModelAdmin):
     """
     Admin interface for ClientMember model.
     """
-    list_display = ['user', 'client', 'role', 'can_view_billing', 'can_manage_team', 'created_at']
-    list_filter = ['role', 'can_view_billing', 'can_manage_team', 'created_at']
+    list_display = ['user', 'client', 'created_at']
+    list_filter = ['created_at']
     search_fields = ['user__username', 'user__email', 'user__first_name', 'user__last_name', 'client__name']
     ordering = ['-created_at']
     
-    fieldsets = (
-        ('Association', {
+    fieldsets = ((
+        'Association', {
             'fields': ('user', 'client')
-        }),
-        ('Permissions', {
-            'fields': ('role', 'can_view_billing', 'can_manage_team')
-        }),
-    )
+        }
+    ),)
     
     autocomplete_fields = ['user', 'client']
     readonly_fields = ['created_at', 'updated_at']

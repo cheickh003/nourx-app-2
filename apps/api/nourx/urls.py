@@ -27,6 +27,13 @@ urlpatterns = [
     path("api/", include("apps.core.urls")),
     path("api/", include("apps.projects.urls")),
     path("api/", include("apps.tasks.urls")),
+    path("api/", include("apps.documents.urls")),
+    path("api/", include("apps.billing.urls")),
+    # Payments (mounted under /api/ to avoid trailing-slash rewrite issues)
+    path("api/", include("apps.payments.urls")),
+    # Support tickets
+    path("api/", include("apps.support.urls")),
+    path("api/", include("apps.clients.urls")),
     # Other app URLs will be added as we implement them
 ]
 

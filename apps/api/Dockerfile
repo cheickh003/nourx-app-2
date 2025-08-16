@@ -13,6 +13,14 @@ RUN apt-get update \
         build-essential \
         libpq-dev \
         curl \
+        libcairo2 \
+        libpango-1.0-0 \
+        libgdk-pixbuf-2.0-0 \
+        libharfbuzz0b \
+        libfribidi0 \
+        libffi8 \
+        shared-mime-info \
+        fonts-dejavu-core \
         && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

@@ -6,7 +6,7 @@ export default function ClientLayout({
   children: React.ReactNode
 }) {
   return (
-    <AuthGuard>
+    <AuthGuard role="client">
       {children}
     </AuthGuard>
   )

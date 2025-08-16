@@ -19,8 +19,13 @@ function useApiData<T>(endpoint: string, dependencies: unknown[] = []) {
     try {
       setLoading(true)
       setError(null)
-      const result = await apiClient.get<T>(endpoint)
-      setData(result)
+      const result = await apiClient.get<any>(endpoint)
+      // Normalize DRF paginated responses: { count, next, previous, results }
+      if (result && typeof result === 'object' && Array.isArray(result.results)) {
+        setData(result.results as T)
+      } else {
+        setData(result as T)
+      }
     } catch (err) {
       setError(handleApiError(err))
     } finally {
@@ -37,8 +42,8 @@ function useApiData<T>(endpoint: string, dependencies: unknown[] = []) {
 
 // Dashboard hooks
 export function useDashboard() {
-  const projects = useApiData<any>('/api/projects/dashboard_stats/')
-  const tasks = useApiData<any>('/api/tasks/dashboard_stats/')
+  const projects = useApiData<any>('/api/projects/dashboard_stats')
+  const tasks = useApiData<any>('/api/tasks/dashboard_stats')
   
   // Combine project and task stats into dashboard stats
   const data = projects.data && tasks.data ? {
@@ -63,54 +68,59 @@ export function useDashboard() {
 
 // Projects hooks
 export function useProjects() {
-  return useApiData<Project[]>('/api/projects/')
+  return useApiData<Project[]>('/api/projects')
 }
 
 export function useProject(id: number) {
-  return useApiData<Project>(`/api/projects/${id}/`, [id])
+  return useApiData<Project>(`/api/projects/${id}`, [id])
 }
 
 // Tasks hooks
 export function useTasks(projectId?: number) {
-  const endpoint = projectId ? `/api/tasks/?project=${projectId}` : '/api/tasks/'
+  const endpoint = projectId ? `/api/tasks?project=${projectId}` : '/api/tasks'
   return useApiData<Task[]>(endpoint, [projectId])
 }
 
 export function useTasksKanban(projectId?: number) {
-  const endpoint = projectId ? `/api/tasks/kanban/?project=${projectId}` : '/api/tasks/kanban/'
+  const endpoint = projectId ? `/api/tasks/kanban?project=${projectId}` : '/api/tasks/kanban'
   return useApiData<any>(endpoint, [projectId])
 }
 
 export function useMyTasks() {
-  return useApiData<Task[]>('/api/tasks/my_tasks/')
+  return useApiData<Task[]>('/api/tasks/my_tasks')
 }
 
 export function useTask(id: number) {
-  return useApiData<Task>(`/api/tasks/${id}/`, [id])
+  return useApiData<Task>(`/api/tasks/${id}`, [id])
 }
 
 // Invoices hooks
 export function useInvoices() {
-  return useApiData<Invoice[]>('/api/invoices/')
+  return useApiData<Invoice[]>('/api/invoices')
 }
 
 export function useInvoice(id: number) {
-  return useApiData<Invoice>(`/api/invoices/${id}/`, [id])
+  return useApiData<Invoice>(`/api/invoices/${id}`, [id])
+}
+
+// Payments hooks
+export function usePayments() {
+  return useApiData<any[]>('/api/payments')
 }
 
 // Documents hooks
 export function useDocuments(projectId?: number) {
-  const endpoint = projectId ? `/api/documents/?project=${projectId}` : '/api/documents/'
+  const endpoint = projectId ? `/api/documents?project=${projectId}` : '/api/documents'
   return useApiData<Document[]>(endpoint, [projectId])
 }
 
 // Support tickets hooks
 export function useSupportTickets() {
-  return useApiData<SupportTicket[]>('/api/tickets/')
+  return useApiData<SupportTicket[]>('/api/tickets')
 }
 
 export function useSupportTicket(id: number) {
-  return useApiData<SupportTicket>(`/api/tickets/${id}/`, [id])
+  return useApiData<SupportTicket>(`/api/tickets/${id}`, [id])
 }
 
 // Mutation hooks for write operations
@@ -120,7 +130,7 @@ export function useApiMutation<TData = unknown, TVariables = unknown>() {
 
   const mutate = async (
     endpoint: string,
-    method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
     data?: TVariables
   ): Promise<TData> => {
     setLoading(true)
@@ -129,6 +139,9 @@ export function useApiMutation<TData = unknown, TVariables = unknown>() {
     try {
       let result: TData
       switch (method) {
+        case 'GET':
+          result = await apiClient.get<TData>(endpoint)
+          break
         case 'POST':
           result = await apiClient.post<TData>(endpoint, data)
           break
@@ -153,4 +166,50 @@ export function useApiMutation<TData = unknown, TVariables = unknown>() {
   }
 
   return { mutate, loading, error }
+}
+
+// Axios-like API wrapper for admin components
+export function useClientApi() {
+  return {
+    get: async <T = any>(endpoint: string) => {
+      try {
+        const data = await apiClient.get<T>(endpoint)
+        return { data }
+      } catch (e) {
+        throw new Error(handleApiError(e))
+      }
+    },
+    post: async <T = any>(endpoint: string, payload?: any) => {
+      try {
+        const data = await apiClient.post<T>(endpoint, payload)
+        return { data }
+      } catch (e) {
+        throw new Error(handleApiError(e))
+      }
+    },
+    put: async <T = any>(endpoint: string, payload: any) => {
+      try {
+        const data = await apiClient.put<T>(endpoint, payload)
+        return { data }
+      } catch (e) {
+        throw new Error(handleApiError(e))
+      }
+    },
+    patch: async <T = any>(endpoint: string, payload: any) => {
+      try {
+        const data = await apiClient.patch<T>(endpoint, payload)
+        return { data }
+      } catch (e) {
+        throw new Error(handleApiError(e))
+      }
+    },
+    delete: async <T = any>(endpoint: string) => {
+      try {
+        const data = await apiClient.delete<T>(endpoint)
+        return { data }
+      } catch (e) {
+        throw new Error(handleApiError(e))
+      }
+    },
+  }
 }

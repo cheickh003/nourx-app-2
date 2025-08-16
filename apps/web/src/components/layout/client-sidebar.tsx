@@ -13,7 +13,8 @@ import {
   Upload, 
   MessageCircle,
   User,
-  LogOut
+  LogOut,
+  CreditCard,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
@@ -27,8 +28,8 @@ interface NavItem {
 const navigation: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projets', label: 'Mes Projets', icon: FolderOpen },
-  { href: '/taches', label: 'Mes Tâches', icon: CheckSquare },
   { href: '/factures', label: 'Mes Factures', icon: FileText },
+  { href: '/paiements', label: 'Mes Paiements', icon: CreditCard },
   { href: '/documents', label: 'Documents', icon: Upload },
   { href: '/support', label: 'Support', icon: MessageCircle },
   { href: '/profil', label: 'Mon Profil', icon: User },

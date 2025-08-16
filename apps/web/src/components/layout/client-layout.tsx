@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuth } from '@/hooks/use-auth'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ClientSidebar } from './client-sidebar'
 import { ClientHeader } from './client-header'
 import { cn } from '@/lib/utils'
@@ -12,6 +14,7 @@ interface ClientLayoutProps {
 
 export function ClientLayout({ children, title }: ClientLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { user, loading } = useAuth()
 
   return (
     <div className="flex h-screen bg-background">
@@ -46,7 +49,24 @@ export function ClientLayout({ children, title }: ClientLayoutProps) {
           showMobileMenu={true}
         />
         <main className="flex-1 overflow-auto">
-          {children}
+          {loading ? (
+            <div className="p-6">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+            </div>
+          ) : (user && (user as any).role === 'client' && (!user.client_ids || user.client_ids.length === 0)) ? (
+            <div className="p-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Accès en cours de configuration</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  Votre compte n'est pas encore associé à un client. Contactez l'administrateur pour lier votre accès.
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

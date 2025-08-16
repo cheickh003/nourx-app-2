@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
+import { ReactQueryProvider } from '@/components/providers/react-query-provider'
+import { Toaster } from '@/components/ui/use-toast'
 
 export const metadata: Metadata = {
   title: 'NOURX - Espace Client',
@@ -16,8 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body className={inter.className}>
-        {children}
+      <body className="font-sans antialiased">
+        <ReactQueryProvider>
+          <Toaster>
+            {children}
+          </Toaster>
+        </ReactQueryProvider>
       </body>
     </html>
   )

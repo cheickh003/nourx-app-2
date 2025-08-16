@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep trailing slashes so API endpoints ending with '/' are preserved
   trailingSlash: true,
   images: {
     domains: ['localhost', 'minio'],
@@ -13,10 +14,14 @@ const nextConfig = {
     ],
   },
   async rewrites() {
-    // Use container URL in dev (Docker), allow override via API_BASE_URL
-    const backendUrl = process.env.NODE_ENV === 'development'
-      ? (process.env.API_BASE_URL || 'http://web:8000')
-      : (process.env.API_BASE_URL || 'http://web:8000')
+    // Resolve backend URL:
+    // - In development: always use localhost unless an explicit NEXT_PUBLIC_API_URL is provided
+    //   (avoids pointing to Docker service host like "web" which isn't reachable from Next dev server)
+    // - In production: use API_BASE_URL if set, otherwise fall back to docker service host
+    const isDev = process.env.NODE_ENV === 'development'
+    const backendUrl = isDev
+      ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
+      : (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://web:8000')
       
     return [
       {
@@ -25,6 +30,10 @@ const nextConfig = {
       },
       {
         source: '/csrf',
+        destination: `${backendUrl}/api/auth/csrf/`,
+      },
+      {
+        source: '/csrf/',
         destination: `${backendUrl}/api/auth/csrf/`,
       },
     ];

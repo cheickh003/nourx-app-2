@@ -16,16 +16,14 @@ import {
   Calendar,
   Euro
 } from 'lucide-react'
-import { useDashboard, useProjects, useTasks, useInvoices } from '@/hooks/use-client-api'
+import { useProjects, useInvoices } from '@/hooks/use-client-api'
 import Link from 'next/link'
 
 function DashboardStats() {
-  const { data: dashboard, loading: dashboardLoading } = useDashboard()
   const { data: projects, loading: projectsLoading } = useProjects()
-  const { data: tasks, loading: tasksLoading } = useTasks()
   const { data: invoices, loading: invoicesLoading } = useInvoices()
 
-  if (dashboardLoading || projectsLoading || tasksLoading || invoicesLoading) {
+  if (projectsLoading || invoicesLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
@@ -40,12 +38,8 @@ function DashboardStats() {
   }
 
   const activeProjects = projects?.filter(p => p.status === 'active').length || 0
-  const pendingTasks = tasks?.filter(t => t.status === 'todo' || t.status === 'in_progress').length || 0
-  const overdueTasks = tasks?.filter(t => 
-    t.due_date && new Date(t.due_date) < new Date() && 
-    (t.status === 'todo' || t.status === 'in_progress')
-  ).length || 0
-  const pendingInvoices = invoices?.filter(i => i.status === 'sent').length || 0
+  const dueInvoices = invoices?.filter(i => i.status === 'sent' || i.is_overdue).length || 0
+  const overdueInvoices = invoices?.filter(i => i.is_overdue).length || 0
 
   const stats = [
     {
@@ -56,26 +50,19 @@ function DashboardStats() {
       color: 'text-blue-600'
     },
     {
-      title: 'Tâches en Cours',
-      value: pendingTasks,
-      icon: CheckSquare,
-      href: '/taches',
-      color: 'text-green-600'
-    },
-    {
-      title: 'Tâches en Retard',
-      value: overdueTasks,
-      icon: AlertTriangle,
-      href: '/taches',
-      color: 'text-red-600'
-    },
-    {
-      title: 'Factures Dues',
-      value: pendingInvoices,
+      title: 'Factures à payer',
+      value: dueInvoices,
       icon: FileText,
       href: '/factures',
       color: 'text-orange-600'
-    }
+    },
+    {
+      title: 'Factures en retard',
+      value: overdueInvoices,
+      icon: AlertTriangle,
+      href: '/factures',
+      color: 'text-red-600'
+    },
   ]
 
   return (
@@ -201,7 +188,7 @@ function PendingInvoices() {
     )
   }
 
-  const pendingInvoices = invoices?.filter(i => i.status === 'sent').slice(0, 2) || []
+  const pendingInvoices = invoices?.filter(i => i.status === 'sent' || i.is_overdue).slice(0, 2) || []
 
   return (
     <Card>
@@ -269,9 +256,7 @@ function PendingInvoices() {
 }
 
 function RecentActivity() {
-  const { data: dashboard } = useDashboard()
-
-  const activities = dashboard?.recent_activity?.slice(0, 5) || [
+  const activities = [
     {
       id: 1,
       type: 'task' as const,
@@ -339,17 +324,7 @@ export default function DashboardPage() {
         {/* Stats Overview */}
         <DashboardStats />
 
-        {/* Alerts */}
-        <Alert variant="info">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Information</AlertTitle>
-          <AlertDescription>
-            Vous avez 2 tâches qui nécessitent votre attention. 
-            <Link href="/taches" className="ml-1 underline">
-              Voir les tâches
-            </Link>
-          </AlertDescription>
-        </Alert>
+        {/* Alerts (optionnel) */}
 
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-2">
@@ -357,11 +332,44 @@ export default function DashboardPage() {
             <ProjectsOverview />
             <PendingInvoices />
           </div>
-          <div>
+          <div className="space-y-6">
             <RecentActivity />
+            <RecentPayments />
           </div>
         </div>
       </div>
     </ClientLayout>
   )
+}
+
+// Add near bottom: simple recent payments card (optional)
+function RecentPayments() {
+  // Dynamic import of hook to avoid breaking older builds
+  try {
+    // @ts-ignore
+    const { usePayments } = require('@/hooks/use-client-api')
+    const { data: payments } = usePayments()
+    const items = (payments || []).slice(0, 5)
+    if (!items.length) return null
+    const { Card, CardHeader, CardTitle, CardContent } = require('@/components/ui/card')
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Paiements récents</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {items.map((p: any) => (
+              <div key={p.id} className="flex justify-between text-sm">
+                <span>{new Date(p.created_at).toLocaleDateString('fr-FR')} — {p.cinetpay_transaction_id?.slice(0,8)}</span>
+                <span className="font-medium">{p.amount} {p.currency}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  } catch {
+    return null
+  }
 }
