@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/hooks/use-auth'
 import { AlertCircle } from 'lucide-react'
+import Image from 'next/image'
 
 export default function AdminLoginPage() {
   const [credentials, setCredentials] = useState({ username: '', password: '' })
@@ -43,7 +44,9 @@ export default function AdminLoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">NOURX Admin</h1>
+          <div className="flex justify-center">
+            <Image src="apps/web/public/CNourx.png" alt="NOURX" width={160} height={40} className="h-10 w-auto" />
+          </div>
           <p className="text-gray-600 mt-2">Connexion administrateur</p>
         </div>
 
@@ -79,4 +82,3 @@ export default function AdminLoginPage() {
     </div>
   )
 }
-

@@ -58,29 +58,19 @@ class ProjectViewSet(viewsets.ModelViewSet):
         ).select_related('client', 'project_manager').prefetch_related(
             'team_members', 'milestones', 'tasks'
         )
-    
-    def perform_create(self, serializer):
-        """Create project with proper client assignment."""
-        user = self.request.user
-        
-        # Get client from request data or user's default client
-        client_id = self.request.data.get('client_id')
-        
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        client_id = request.data.get('client')
+
         if not client_id:
-            # If no client specified, try to get user's first client
-            client_membership = ClientMember.objects.filter(user=user).first()
-            if not client_membership:
-                raise ValueError("Aucun client associé à cet utilisateur.")
-            client_id = client_membership.client.id
-        else:
-            # Verify user has access to this client
-            if not user.is_staff and not (hasattr(user, 'profile') and user.profile.role == 'admin'):
-                if not ClientMember.objects.filter(user=user, client_id=client_id).exists():
-                    raise PermissionError("Accès non autorisé à ce client.")
-        
-        from apps.clients.models import Client
-        client = Client.objects.get(id=client_id)
-        serializer.save(client=client)
+            return Response({"detail": "Client is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.is_staff and not (hasattr(user, 'profile') and user.profile.role == 'admin'):
+            if not ClientMember.objects.filter(user=user, client_id=client_id).exists():
+                return Response({"detail": "You do not have permission to create a project for this client."}, status=status.HTTP_403_FORBIDDEN)
+
+        return super().create(request, *args, **kwargs)
     
     def get_permissions(self):
         """Get permissions based on action."""

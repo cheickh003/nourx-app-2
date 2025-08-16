@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -24,7 +25,7 @@ export function AdminSidebar() {
   return (
     <div className="flex h-full flex-col border-r bg-background w-60">
       <div className="flex h-14 items-center border-b px-4">
-        <h1 className="text-xl font-semibold">NOURX Admin</h1>
+        <Image src="/CNourx.png" alt="NOURX" width={128} height={32} className="h-8 w-auto" />
       </div>
       <nav className="flex-1 space-y-1 p-2">
         {nav.map((item) => {

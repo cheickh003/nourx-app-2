@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Users, Briefcase, FileText, LifeBuoy, Settings, CreditCard } from 'lucide-react';
+import Image from 'next/image';
 
 const navItems = [
   { href: '/admin', icon: Home, label: 'Dashboard' },
@@ -20,8 +21,8 @@ export function AdminSidebar() {
 
   return (
     <aside className="w-64 bg-gray-800 text-white p-4">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold">NOURX Admin</h2>
+      <div className="mb-8 flex items-center">
+        <Image src="apps/web/public/CNourx.png" alt="NOURX" width={140} height={36} className="h-9 w-auto" />
       </div>
       <nav>
         <ul>

@@ -174,7 +174,7 @@ class ProjectCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            "title", "description", "status", "priority", "progress",
+            "client", "title", "description", "status", "priority", "progress",
             "start_date", "end_date", "estimated_hours", "notes",
             "project_manager", "team_members"
         ]

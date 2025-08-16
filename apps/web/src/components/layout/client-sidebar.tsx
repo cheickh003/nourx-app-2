@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -52,7 +53,7 @@ export function ClientSidebar() {
     <div className="flex h-full flex-col border-r bg-background">
       {/* Logo/Brand */}
       <div className="flex h-14 items-center border-b px-4">
-        <h1 className="text-xl font-semibold">NOURX</h1>
+        <Image src="apps/web/public/CNourx.png" alt="NOURX" width={128} height={32} className="h-8 w-auto" />
       </div>
 
       {/* User Info */}

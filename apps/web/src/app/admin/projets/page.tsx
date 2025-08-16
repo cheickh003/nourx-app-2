@@ -21,19 +21,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useProjects, useApiMutation } from '@/hooks/use-client-api'
-import type { Project } from '@/types/client'
+import { useProjects, useClients, useApiMutation } from '@/hooks/use-client-api'
+import type { Project, Client } from '@/types/client'
 
+// Align with backend Project.STATUS_CHOICES
+// Django: 'draft', 'active', 'on_hold', 'completed', 'cancelled'
 const PROJECT_STATUSES = [
-  { value: 'NOT_STARTED', label: 'Pas commencé' },
-  { value: 'IN_PROGRESS', label: 'En cours' },
-  { value: 'COMPLETED', label: 'Terminé' },
-  { value: 'ON_HOLD', label: 'En attente' },
-  { value: 'CANCELED', label: 'Annulé' },
+  { value: 'draft', label: 'Brouillon' },
+  { value: 'active', label: 'Actif' },
+  { value: 'on_hold', label: 'En pause' },
+  { value: 'completed', label: 'Terminé' },
+  { value: 'cancelled', label: 'Annulé' },
 ]
 
 export default function AdminProjectsPage() {
   const { data: projects, loading, error, refetch } = useProjects()
+  const { data: clients } = useClients()
   const { mutate, loading: mutationLoading } = useApiMutation()
 
   const [isDialogOpen, setDialogOpen] = useState(false)
@@ -49,10 +52,10 @@ export default function AdminProjectsPage() {
     setDialogOpen(true)
   }
 
-  const handleDeleteClick = async (id: number) => {
+  const handleDeleteClick = async (id: string) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
       try {
-        await mutate(`/api/projects/${id}/`, 'DELETE')
+        await mutate(`/api/projects/${id}`, 'DELETE')
         refetch()
       } catch (e) {
         console.error(e)
@@ -71,9 +74,9 @@ export default function AdminProjectsPage() {
 
     try {
       if (selectedProject) {
-        await mutate(`/api/projects/${selectedProject.id}/`, 'PATCH', data)
+        await mutate(`/api/projects/${selectedProject.id}`, 'PATCH', data)
       } else {
-        await mutate('/api/projects/', 'POST', data)
+        await mutate('/api/projects', 'POST', data)
       }
       refetch()
       setDialogOpen(false)
@@ -152,10 +155,21 @@ export default function AdminProjectsPage() {
                 <Input id="title" name="title" defaultValue={selectedProject?.title} className="col-span-3" />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="client_name" className="text-right">
+                <Label htmlFor="client" className="text-right">
                   Client
                 </Label>
-                <Input id="client_name" name="client_name" defaultValue={selectedProject?.client_name} className="col-span-3" />
+                <Select name="client" defaultValue={selectedProject?.client}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Sélectionner un client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(clients || []).map((client: Client) => (
+                      <SelectItem key={client.id} value={`${client.id}`}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="status" className="text-right">
