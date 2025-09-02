@@ -1,0 +1,145 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # API Tests and Linting
+  api-test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./api
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: './api/package-lock.json'
+    
+    - name: Install dependencies
+      run: npm install
+    
+    - name: Run ESLint
+      run: npm run lint
+    
+    - name: Run tests
+      run: npm test --if-present
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://nourx_user:nourx_password@localhost:5432/nourx_test
+        JWT_SECRET: test-jwt-secret
+        JWT_REFRESH_SECRET: test-refresh-secret
+
+  # Frontend Tests and Linting  
+  web-test:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./web
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: './web/package-lock.json'
+    
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+    
+    - name: Run ESLint
+      run: npm run lint
+    
+    - name: Run Svelte Check
+      run: npm run check
+    
+    - name: Build application
+      run: npm run build
+      env:
+        PUBLIC_API_URL: http://localhost:3001
+  
+  # Integration Test (API health with Postgres service)
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: [api-test, web-test]
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: nourx
+          POSTGRES_USER: nourx_user
+          POSTGRES_PASSWORD: nourx_password
+        options: >-
+          --health-cmd "pg_isready -U nourx_user -d nourx"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './api/package-lock.json'
+      - name: Install API deps
+        working-directory: ./api
+        run: npm install
+      - name: Apply DB schema
+        env:
+          DATABASE_URL: postgresql://nourx_user:nourx_password@localhost:5432/nourx
+        run: node api/src/database/migrate.js && node api/src/database/seed.js
+      - name: Start API
+        working-directory: ./api
+        env:
+          NODE_ENV: test
+          PORT: 3001
+          DATABASE_URL: postgresql://nourx_user:nourx_password@localhost:5432/nourx
+          JWT_SECRET: test-jwt-secret
+          JWT_REFRESH_SECRET: test-refresh-secret
+          CORS_ORIGIN: http://localhost:5173
+        run: |
+          nohup npm start &
+          sleep 3
+      - name: Wait for API health
+        run: timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+      - name: Health response
+        run: curl -sf http://localhost:3001/health
+
+  # Security Scan
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # (Deploy steps to be added later for Vercel/other)
