@@ -1,6 +1,6 @@
 # PRD — **Nourx-app**
 
-Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: PostgreSQL (Docker uniquement), Node.js + Express (API en local), SvelteKit (front en local) + Tailwind CSS + Flowbite Svelte (UI)
+Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: PostgreSQL (Docker uniquement), Node.js + Express (API en local), Next.js (front en local, App Router) + Tailwind CSS + shadcn/ui (UI)
 
 ## 1) Vision et objectifs
 
@@ -129,27 +129,27 @@ Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: Pos
 
 ### 5.1 UI/UX & Design System
 
-- Bibliothèque UI: **Flowbite Svelte** + Tailwind CSS; composants accessibles prêts à l’emploi; personnalisation via classes utilitaires.
+- Bibliothèque UI: **shadcn/ui** + Tailwind CSS (primitives Radix accessibles). Personnalisation via classes utilitaires et tokens CSS.
 - Palette principale: noir/blanc (neutres) sur Admin et Client. Utiliser des gris pour états et séparations.
-- Tokens (CSS variables) centralisés dans `app.css` pour assurer la cohérence visuelle.
-- Composants: boutons, inputs, modales, tables, onglets, toasts… en niveaux de gris. Accent via typographie et espacement.
+- Tokens (CSS variables) centralisés (tailwind + `globals.css`) pour assurer la cohérence visuelle.
+- Composants: Button, Input, Dialog/Drawer, Table, Tabs, Toast (sonner)… en niveaux de gris. Accent via typographie et espacement.
 - Typographie: Inter/System UI; échelle Tailwind. Arrondis ≈ 6 px.
 - Accessibilité: contraste ≥ 4.5:1; focus visibles; support clavier/lecteur d’écran.
-- Icônes: `flowbite-svelte-icons`. Pas de codage couleur des statuts critiques: icône + texte.
+- Icônes: `lucide-react`. Pas de codage couleur des statuts critiques: icône + texte.
 
 ## 6) Architecture technique
 
 ### 6.1 Frontend
 
-* **SvelteKit** + **Tailwind CSS** + **Flowbite Svelte** (UI). Développement en local avec Vite (`npm run dev`). Contraintes design: palette noir/blanc, tokens de thème centralisés, composants neutres. ([Svelte][4])
+* **Next.js (App Router)** + **Tailwind CSS** + **shadcn/ui** (UI) + **Better Auth** pour l'authentification. Développement en local (`npm run dev`). Contraintes design: palette noir/blanc, tokens de thème centralisés, composants neutres. Data fetching côté serveur par défaut (`fetch` avec `cache: 'no-store'` pour SSR dynamique) et SWR côté client si nécessaire.
 
 ### 6.2 Backend
 
-* **Node.js + Express** pour API REST en local (pas de Docker pour l’API). Routage, middlewares, gestion des erreurs; structure modulaire par domaine (auth, accounts, projects, tickets, billing, files). ([expressjs.com][5], [devdocs.io][6], [MDN Web Docs][7])
+* **Node.js + Express** pour API REST en local (pas de Docker pour l'API) avec **Better Auth** comme solution d'authentification et d'autorisation. Better Auth gère JWT, sessions, RBAC et intégration email/password. Structure modulaire par domaine (accounts, projects, tickets, billing, files). ([expressjs.com][5], [better-auth.com])
 
 ### 6.3 Base de données
 
-* **PostgreSQL** exécuté en **Docker uniquement** pour le développement: image officielle, variables d’environnement, volumes pour persistance, scripts d’initialisation. L’API et le front se connectent via `localhost:5432`. La production sera gérée plus tard (Vercel ou autre) avec une base managée. ([GitHub][8], [Docker][9])
+* **PostgreSQL** exécuté en **Docker uniquement** pour le développement: image officielle, variables d'environnement, volumes pour persistance, scripts d'initialisation. L'API et le front se connectent via `localhost:5432`. Better Auth gère automatiquement les migrations de ses tables d'authentification. La production sera gérée plus tard (Vercel ou autre) avec une base managée. ([GitHub][8], [Docker][9])
 
 ### 6.4 E-mails SMTP
 
@@ -170,12 +170,15 @@ Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: Pos
 * **email\_outbox**(id, to, subject, payload\_json, status\[pending|sent|failed], last\_error, created\_at, sent\_at)
 * **audit\_log**(id, actor\_admin\_id, target\_type, target\_id, action, details\_json, created\_at)
 
-## 8) API (exemples d’endpoints REST)
+## 8) API (exemples d'endpoints REST)
 
-### Auth
+### Auth (géré par Better Auth)
 
-* `POST /api/auth/login` → JWT + refresh; verrouillage après N échecs.
-* `POST /api/auth/refresh` • `POST /api/auth/logout`
+* `/api/auth/*` → Endpoints automatiques de Better Auth (sign-in, sign-up, sign-out, session)
+* `/api/auth/sign-in/email` → Connexion email/password avec sessions
+* `/api/auth/sign-up/email` → Création compte avec validation email
+* `/api/auth/forgot-password` → Réinitialisation mot de passe
+* `/api/auth/verify-email` → Vérification email
 
 ### Comptes client
 
@@ -217,8 +220,11 @@ Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: Pos
 
 ### Authentification et mots de passe
 
-* Stockage hashé (argon2id/bcrypt).
-* Longueur min 8, max ≥64. Passphrases permises. Reset via jeton à durée limitée. ([cheatsheetseries.owasp.org][2])
+* **Better Auth** gère automatiquement le hachage sécurisé des mots de passe et la gestion des sessions
+* Support natif pour email/password, OAuth, 2FA et organisation/RBAC
+* Sessions sécurisées avec cookies httpOnly et tokens CSRF
+* Rate limiting intégré et protection contre les attaques par force brute
+* Reset de mot de passe via tokens sécurisés avec expiration configurable
 
 ### RBAC et cloisonnement
 
@@ -284,7 +290,7 @@ Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: Pos
 
 * Service `db` basé sur image officielle **postgres**, volume `pgdata`, variables `POSTGRES_DB/USER/PASSWORD`, healthcheck, scripts d’init (schéma + seeds). ([GitHub][8])
 * **API (local)**: Node 20+, Express, `.env` pour `DATABASE_URL` (pointe vers `localhost:5432`), `JWT_*`, `SMTP_*`, `CORS_ORIGIN`. Démarrage `npm run dev`.
-* **Web (local)**: SvelteKit + Vite (`npm run dev`), proxy `/api` → API locale; thème neutre noir/blanc avec Flowbite Svelte.
+* **Web (local)**: Next.js (App Router) + Tailwind (`npm run dev`). Accès API via `fetch` côté serveur (Server Components) avec `cache: 'no-store'` pour SSR dynamique, ou via `NEXT_PUBLIC_API_BASE_URL` côté client. Thème neutre noir/blanc avec shadcn/ui.
 * Déploiement (à venir): Vercel/Autre. Pas d’images Docker pour `api`/`web` au MVP.
 
 ### Observabilité
@@ -304,9 +310,9 @@ Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: Pos
 
 ### Références clés
 
+* Next.js (App Router, data fetching, SSR/ISR). (https://nextjs.org/docs)
+* shadcn/ui (installation CLI, composants). (https://ui.shadcn.com)
 * Express, API et middlewares. ([expressjs.com][5], [devdocs.io][6], [MDN Web Docs][7])
-* Svelte, approche par compilation et docs. ([Svelte][4], [devdocs.io][12])
-* Flowbite Svelte (installation, composants). (https://flowbite-svelte.com)
 * Nodemailer + SMTP pour envoi d’e-mails. ([nodemailer.com][10])
 * PostgreSQL image officielle Docker, bonnes pratiques. ([GitHub][8], [Docker][9])
 * Politiques mot de passe et sécurité (OWASP Cheat Sheets + ASVS). ([cheatsheetseries.owasp.org][2], [OWASP Foundation][3])
@@ -315,7 +321,7 @@ Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: Pos
 [1]: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html?utm_source=chatgpt.com "Authentication Cheat Sheet"
 [2]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html?utm_source=chatgpt.com "Password Storage - OWASP Cheat Sheet Series"
 [3]: https://owasp.org/www-project-application-security-verification-standard/?utm_source=chatgpt.com "OWASP Application Security Verification Standard (ASVS)"
-[4]: https://svelte.dev/docs?utm_source=chatgpt.com "Docs • Svelte"
+[4]: https://nextjs.org/docs "Next.js Documentation"
 [5]: https://expressjs.com/?utm_source=chatgpt.com "Express - Node.js web application framework"
 [6]: https://devdocs.io/express/?utm_source=chatgpt.com "Express documentation"
 [7]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/Express_Nodejs/Introduction?utm_source=chatgpt.com "Express/Node introduction - MDN"
@@ -323,4 +329,4 @@ Version: 0.1 • Portée MVP • Cible: TPE/PME clientes de NOURX • Stack: Pos
 [9]: https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/?utm_source=chatgpt.com "How to Use the Postgres Docker Official Image"
 [10]: https://nodemailer.com/?utm_source=chatgpt.com "Nodemailer | Nodemailer"
 [11]: https://nodemailer.com/smtp?utm_source=chatgpt.com "SMTP transport"
-[12]: https://devdocs.io/svelte/?utm_source=chatgpt.com "Svelte documentation"
+[12]: https://ui.shadcn.com "shadcn/ui Documentation"

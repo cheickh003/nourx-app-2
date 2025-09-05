@@ -1,0 +1,44 @@
+{
+  "name": "@nourx/shared",
+  "version": "1.0.0",
+  "description": "Schémas et types partagés entre frontend et backend",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "shared",
+    "types",
+    "zod",
+    "validation"
+  ],
+  "author": "NOURX Team",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "date-fns": "^3.6.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.13.1",
+    "@typescript-eslint/parser": "^7.13.1",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "prettier": "^3.3.2",
+    "typescript": "^5.5.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-arm64": "15.5.2"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "types": ["node", "vitest/globals"],
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"],
+      "@/config/*": ["src/config/*"],
+      "@/lib/*": ["src/lib/*"],
+      "@/routes/*": ["src/routes/*"],
+      "@/services/*": ["src/services/*"],
+      "@/middleware/*": ["src/middleware/*"],
+      "@/types/*": ["src/types/*"],
+      "@shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": [
+    "src/app.ts",
+    "src/server.ts",
+    "src/config/**/*.ts",
+    "src/lib/logger.ts",
+    "src/lib/errors.ts",
+    "src/lib/db.ts",
+    "src/lib/transaction.ts",
+    "src/middleware/requestId.ts",
+    "src/middleware/auth.ts",
+    "src/middleware/validation.ts",
+    "src/routes/organizations.ts",
+    "src/routes/userClients.ts",
+    "src/services/organization.service.ts",
+    "src/services/userClient.service.ts",
+    "src/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "*.config.*",
+    "tests/**/*",
+    "src/integrations/**/*",
+    
+    "src/lib/memory-adapter.ts",
+    "src/routes/invoices.ts",
+    "src/routes/tickets.ts",
+    "src/routes/tools.ts",
+    
+    "src/routes/projects.ts",
+    "src/routes/milestones.ts",
+    "src/routes/deliverables.ts",
+    "src/routes/documents.ts",
+    "src/routes/api.ts",
+    
+    "src/lib/pagination.ts",
+    "src/middleware/logging.ts",
+    "src/middleware/rateLimiting.ts",
+    "src/middleware/roles.ts",
+    "src/workers/**/*"
+  ],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
+}

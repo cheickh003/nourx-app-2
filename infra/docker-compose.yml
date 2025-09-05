@@ -1,0 +1,101 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nourx_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nourx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nourx_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nourx_app}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - nourx_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nourx} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-off init job that ensures the target database exists
+  postgres_init:
+    image: postgres:16-alpine
+    container_name: nourx_postgres_init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-nourx_dev_password}
+    command: >
+      sh -c "psql -h postgres -U ${POSTGRES_USER:-nourx} -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB:-nourx_app}'\" | grep -q 1
+      || psql -h postgres -U ${POSTGRES_USER:-nourx} -d postgres -c \"CREATE DATABASE \"\"${POSTGRES_DB:-nourx_app}\"\" OWNER \"\"${POSTGRES_USER:-nourx}\"\";\""
+    networks:
+      - nourx_network
+
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: nourx_postgres_test
+    restart: "no"
+    environment:
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-nourx_test}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-test_password}
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-nourx_app_test}
+    ports:
+      - "${POSTGRES_TEST_PORT:-5433}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - nourx_network
+    profiles:
+      - testing
+
+  redis:
+    image: redis:7-alpine
+    container_name: nourx_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nourx_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  redis_commander:
+    image: rediscommander/redis-commander:latest
+    container_name: nourx_redis_commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379
+      HTTP_USER: ${REDIS_COMMANDER_USER:-admin}
+      HTTP_PASSWORD: ${REDIS_COMMANDER_PASSWORD:-admin123}
+    ports:
+      - "8081:8081"
+    networks:
+      - nourx_network
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - development
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_test_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  nourx_network:
+    driver: bridge

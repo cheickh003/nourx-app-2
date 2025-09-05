@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env*
+.git/
+.vscode/
+.idea/
+*.md
+package-lock.json
+migrations/
+*.sql
